@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Excel to Pseudocode Converter</title>
+  <style>
+    body { font-family: Inter, 'Segoe UI', sans-serif; margin: 24px; background: #eef2ff; color: #1e293b; }
+    .container { max-width: 920px; margin: 0 auto; background: white; padding: 28px; border-radius: 14px; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12); }
+    textarea { width: 100%; min-height: 100px; margin-bottom: 12px; font-size: 16px; padding: 14px; border-radius: 8px; border: 1px solid #cbd5e1; background: #f8fafc; }
+    button { padding: 10px 18px; font-size: 15px; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s ease; }
+    button:hover { background: #1d4ed8; }
+    pre { background: #f8fafc; border: 1px solid #cbd5e1; padding: 14px; border-radius: 8px; white-space: pre-wrap; word-wrap: break-word; min-height: 240px; }
+    h1 { margin-bottom: 12px; font-size: 28px; }
+    h2 { margin: 18px 0 10px; font-size: 22px; color: #0f172a; }
+    .hint { color: #475569; font-size: 14px; margin-bottom: 14px; line-height: 1.45; }
+    .output-row { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+    .output-pane { flex: 1; min-width: 280px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 14px; background: #ffffff; box-shadow: inset 0 0 0 1px #e2e8f0; }
+    .output-pane h3 { margin-top: 0; font-size: 17px; color: #0f172a; display: flex; align-items: center; gap: 8px; }
+    #copySymbol { padding: 4px; border-radius: 50%; transition: background .2s ease; }
+    #copySymbol:hover { background: #e0e7ff; }
+    #copyStatus { color: #0f766e; font-size: 13px; margin-top: 8px; }
+    
+    /* Syntax-highlighted code explanation (VS Code style) */
+    .explain-highlighted-code {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      color: #e2e8f0;
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 20px;
+      border-radius: 10px;
+      border-left: 5px solid #3b82f6;
+      white-space: pre;
+      word-break: normal;
+      overflow-x: auto;
+    }
+    
+    .token-keyword { color: #c586c0; font-weight: 600; }
+    .token-operator { color: #f59e0b; font-weight: 500; }
+    .token-variable { color: #7dd3fc; font-weight: 500; }
+    .token-number { color: #fbbf24; font-weight: 500; }
+    .token-bracket { color: #94a3b8; font-weight: 600; }
+    .token-unknown { color: #cbd5e1; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Excel-to-Pseudocode Converter</h1>
+    <p class="hint">Enter a single Excel-style formula or shorthand expression. This tool converts it into constrained ternary pseudocode with only allowed operations: <code>?, :, +, -, *, /, >, <, >=, <=</code>.</p>
+    <p class="hint">Converter rules:</p>
+    <ul style="color:#475569; font-size:14px; margin-top:0.2rem; line-height:1.45;">
+      <li>Every ternary operator must be complete: <code>(condition) ? value_if_true : value_if_false</code>.</li>
+      <li>No built-in functions in the output; only the permitted expression forms are generated.</li>
+      <li>No new variables can be invented; only input names (normalized to <code>$var</code>) are used.</li>
+      <li>Evaluation is top-down: nested logic is expanded in sequence into nested ternary expressions.</li>
+    </ul>
+    <p class="hint">Supports case-insensitive functions: IF, MIN, MAX, AND, OR, ROUND, ROUNDUP, ROUNDDOWN, plus shorthand condition form <code>(condition, trueValue, falseValue?)</code>.</p>
+    <div style="background:#e2e8f0;padding:12px;border-radius:8px;margin-bottom:12px;">
+      <strong>Functions (case-insensitive):</strong>
+      <ul style="margin:8px 0 8px 20px;">
+        <li><code>IF(condition, trueValue, falseValue?)</code> (falseValue defaults to 0)</li>
+        <li><code>MIN(a,b,...)</code></li>
+        <li><code>MAX(a,b,...)</code></li>
+        <li><code>AND(a,b,...)</code> -> numeric condition combinator</li>
+        <li><code>OR(a,b,...)</code> -> numeric condition combinator</li>
+        <li><code>ROUND(x)</code> (round nearest)</li>
+        <li><code>ROUNDUP(x)</code> (truncate toward +inf and -inf in numeric style)</li>
+        <li><code>ROUNDDOWN(x)</code> (truncate toward 0)</li>
+      </ul>
+      <div style="font-size:13px;color:#334155;">Example syntax: <code>(A > 10 || B &lt;= 5, 100, 0)</code> or <code>IF(A > B, MAX(A,B), MIN(A,B))</code></div>
+    </div>
+    <textarea id="excelInput" placeholder="Example: =IF(A > 10 && B <= 20, ROUND(C/2,0), MAX(D, E))"></textarea>
+    <button id="convertBtn">Convert</button>
+    <h2>Result</h2>
+    <div class="output-row">
+      <div class="output-pane">
+        <h3>Converted Pseudocode <span id="copySymbol" title="Copy output" style="cursor:pointer; font-size:18px; vertical-align:middle; margin-left:8px;">📋</span></h3>
+        <p style="font-size:13px; color:#334155; margin-top:0;">Click the icon to copy the expression.</p>
+        <pre id="result">Awaiting input...</pre>
+      </div>
+      <div class="output-pane">
+        <h3>Explanation</h3>
+        <div id="explanation" style="white-space: pre-wrap; color: #0f172a; font-size: 15px; min-height: 220px;">No conversion yet.</div>
+      </div>
+    </div>
+    <p id="copyStatus" style="color:#065f46; font-size:13px; margin-top:6px;"></p>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
