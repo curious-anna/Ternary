@@ -5,23 +5,206 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Excel to Pseudocode Converter</title>
   <style>
-    body { font-family: Inter, 'Segoe UI', sans-serif; margin: 24px; background: #eef2ff; color: #1e293b; }
-    .container { max-width: 920px; margin: 0 auto; background: white; padding: 28px; border-radius: 14px; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12); }
-    textarea { width: 100%; min-height: 100px; margin-bottom: 12px; font-size: 16px; padding: 14px; border-radius: 8px; border: 1px solid #cbd5e1; background: #f8fafc; }
-    button { padding: 10px 18px; font-size: 15px; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s ease; }
-    button:hover { background: #1d4ed8; }
-    pre { background: #f8fafc; border: 1px solid #cbd5e1; padding: 14px; border-radius: 8px; white-space: pre-wrap; word-wrap: break-word; min-height: 240px; }
-    h1 { margin-bottom: 12px; font-size: 28px; }
-    h2 { margin: 18px 0 10px; font-size: 22px; color: #0f172a; }
-    .hint { color: #475569; font-size: 14px; margin-bottom: 14px; line-height: 1.45; }
-    .output-row { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
-    .output-pane { flex: 1; min-width: 280px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 14px; background: #ffffff; box-shadow: inset 0 0 0 1px #e2e8f0; }
-    .output-pane h3 { margin-top: 0; font-size: 17px; color: #0f172a; display: flex; align-items: center; gap: 8px; }
-    #copySymbol { padding: 4px; border-radius: 50%; transition: background .2s ease; }
-    #copySymbol:hover { background: #e0e7ff; }
-    #copyStatus { color: #0f766e; font-size: 13px; margin-top: 8px; }
-    
-    /* Syntax-highlighted code explanation (VS Code style) */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: Inter, 'Segoe UI', sans-serif;
+      margin: 24px;
+      background: #eef2ff;
+      color: #1e293b;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      background: white;
+      padding: 28px;
+      border-radius: 14px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    .header { margin-bottom: 20px; }
+    .header h1 { margin: 0 0 4px; font-size: 28px; }
+    .tagline { margin: 0 0 10px; color: #475569; font-size: 15px; }
+    .operator-badge {
+      display: inline-block;
+      background: #e0e7ff;
+      color: #3730a3;
+      font-size: 12px;
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    /* ── Input section ──────────────────────────────────────────────────── */
+    .input-section { margin-bottom: 16px; }
+
+    .input-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+    .input-label-row label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    #charCounter { font-size: 12px; color: #94a3b8; }
+
+    textarea {
+      width: 100%;
+      min-height: 100px;
+      font-size: 15px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1.5px solid #cbd5e1;
+      background: #f8fafc;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      resize: vertical;
+      outline: none;
+    }
+    textarea:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+
+    /* ── Example chips ───────────────────────────────────────────────────── */
+    .example-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 10px 0 14px;
+      font-size: 13px;
+      color: #64748b;
+    }
+    .chip {
+      padding: 4px 10px;
+      font-size: 12px;
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      background: #f1f5f9;
+      color: #1e40af;
+      border: 1px solid #c7d2fe;
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .chip:hover { background: #e0e7ff; border-color: #818cf8; }
+
+    /* ── Buttons ─────────────────────────────────────────────────────────── */
+    .button-row { display: flex; gap: 10px; }
+
+    button {
+      padding: 10px 18px;
+      font-size: 15px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s ease, opacity 0.2s;
+    }
+    #convertBtn { background: #2563eb; color: white; }
+    #convertBtn:hover { background: #1d4ed8; }
+
+    .btn-secondary { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+    .btn-secondary:hover { background: #e2e8f0; }
+
+    /* ── Output layout ───────────────────────────────────────────────────── */
+    h2 { margin: 20px 0 10px; font-size: 22px; color: #0f172a; }
+    h3 { margin-top: 0; font-size: 17px; color: #0f172a; display: flex; align-items: center; gap: 8px; }
+
+    .output-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    .output-pane {
+      flex: 1;
+      min-width: 280px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 14px;
+      background: #ffffff;
+      box-shadow: inset 0 0 0 1px #e2e8f0;
+    }
+
+    /* ── Pseudocode output: dark code theme ─────────────────────────────── */
+    .code-output {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      color: #e2e8f0;
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 20px;
+      border-radius: 10px;
+      border-left: 5px solid #3b82f6;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      overflow-x: auto;
+      min-height: 80px;
+      margin: 0;
+    }
+    .code-output.error {
+      border-left-color: #ef4444;
+      background: linear-gradient(135deg, #1e0a0a 0%, #1f1010 100%);
+      color: #fca5a5;
+    }
+
+    /* ── Copy button ─────────────────────────────────────────────────────── */
+    #copyBtn {
+      padding: 5px 7px;
+      background: transparent;
+      color: #475569;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 0;
+      line-height: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #copyBtn:hover { background: #e0e7ff; border-color: #818cf8; color: #3730a3; }
+    #copyBtn svg { width: 16px; height: 16px; }
+
+    /* ── Copy toast ──────────────────────────────────────────────────────── */
+    .copy-toast {
+      display: inline-block;
+      background: #059669;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-top: 8px;
+      transition: opacity 0.3s;
+    }
+    .copy-toast.hidden { display: none; }
+
+    /* ── Validation badge ────────────────────────────────────────────────── */
+    #validationBadge { margin-bottom: 10px; min-height: 24px; }
+    .badge-valid {
+      display: inline-block;
+      background: #dcfce7;
+      color: #166534;
+      padding: 3px 12px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .badge-invalid {
+      display: inline-block;
+      background: #fee2e2;
+      color: #991b1b;
+      padding: 3px 12px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    /* ── Syntax-highlighted explanation (VS Code style) ─────────────────── */
     .explain-highlighted-code {
       background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
       color: #e2e8f0;
@@ -58,49 +241,97 @@
     .token-step { color: #67e8f9; }
     .token-yes { color: #4ade80; }
     .token-no { color: #f87171; }
+    .token-keyword  { color: #c586c0; font-weight: 600; }
+    .token-operator { color: #f59e0b; font-weight: 500; }
+    .token-variable { color: #7dd3fc; font-weight: 500; }
+    .token-number   { color: #fbbf24; font-weight: 500; }
+    .token-bracket  { color: #94a3b8; font-weight: 600; }
+    .token-unknown  { color: #cbd5e1; }
+
+    /* ── Hint / info blocks ─────────────────────────────────────────────── */
+    .hint { color: #475569; font-size: 14px; margin-bottom: 14px; line-height: 1.45; }
+    .info-box { background: #e2e8f0; padding: 12px; border-radius: 8px; margin-bottom: 16px; }
+
+    /* ── Mobile: stack panes ─────────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .output-row { flex-direction: column; }
+      .output-pane { min-width: unset; }
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Excel-to-Pseudocode Converter</h1>
-    <p class="hint">Enter a single Excel-style formula or shorthand expression. This tool converts it into constrained ternary pseudocode with only allowed operations: <code>?, :, +, -, *, /, >, <, >=, <=</code>.</p>
-    <p class="hint">Converter rules:</p>
-    <ul style="color:#475569; font-size:14px; margin-top:0.2rem; line-height:1.45;">
-      <li>Every ternary operator must be complete: <code>(condition) ? value_if_true : value_if_false</code>.</li>
-      <li>No built-in functions in the output; only the permitted expression forms are generated.</li>
-      <li>No new variables can be invented; only input names (normalized to <code>$var</code>) are used.</li>
-      <li>Evaluation is top-down: nested logic is expanded in sequence into nested ternary expressions.</li>
-    </ul>
-    <p class="hint">Supports case-insensitive functions: IF, MIN, MAX, AND, OR, ROUND, ROUNDUP, ROUNDDOWN, plus shorthand condition form <code>(condition, trueValue, falseValue?)</code>.</p>
-    <div style="background:#e2e8f0;padding:12px;border-radius:8px;margin-bottom:12px;">
-      <strong>Functions (case-insensitive):</strong>
-      <ul style="margin:8px 0 8px 20px;">
-        <li><code>IF(condition, trueValue, falseValue?)</code> (falseValue defaults to 0)</li>
-        <li><code>MIN(a,b,...)</code></li>
-        <li><code>MAX(a,b,...)</code></li>
-        <li><code>AND(a,b,...)</code> -> numeric condition combinator</li>
-        <li><code>OR(a,b,...)</code> -> numeric condition combinator</li>
-        <li><code>ROUND(x)</code> (round nearest)</li>
-        <li><code>ROUNDUP(x)</code> (truncate toward +inf and -inf in numeric style)</li>
-        <li><code>ROUNDDOWN(x)</code> (truncate toward 0)</li>
-      </ul>
-      <div style="font-size:13px;color:#334155;">Example syntax: <code>(A > 10 || B &lt;= 5, 100, 0)</code> or <code>IF(A > B, MAX(A,B), MIN(A,B))</code></div>
+
+    <!-- Header -->
+    <div class="header">
+      <h1>Excel-to-Pseudocode Converter</h1>
+      <p class="tagline">Financial Logic · Net Price Calculator · Strict Ternary Only</p>
+      <span class="operator-badge">Allowed: == != &gt; &lt; &gt;= &lt;= ? : + - * / %</span>
     </div>
-    <textarea id="excelInput" placeholder="Example: =IF(A > 10 && B <= 20, ROUND(C/2,0), MAX(D, E))"></textarea>
-    <button id="convertBtn">Convert</button>
-    <h2>Result</h2>
-    <div class="output-row">
-      <div class="output-pane">
-        <h3>Converted Pseudocode <span id="copySymbol" title="Copy output" style="cursor:pointer; font-size:18px; vertical-align:middle; margin-left:8px;">📋</span></h3>
-        <p style="font-size:13px; color:#334155; margin-top:0;">Click the icon to copy the expression.</p>
-        <pre id="result">Awaiting input...</pre>
+
+    <!-- Info box -->
+    <div class="info-box">
+      <strong>Functions (case-insensitive):</strong>
+      <ul style="margin:8px 0 8px 20px; color:#334155; font-size:13px;">
+        <li><code>IF(condition, trueValue, falseValue?)</code> — falseValue defaults to 0</li>
+        <li><code>MIN(a, b, …)</code> &nbsp;/&nbsp; <code>MAX(a, b, …)</code></li>
+        <li><code>AND(a, b, …)</code> &nbsp;/&nbsp; <code>OR(a, b, …)</code> — or infix <code>A AND B</code> / <code>A OR B</code></li>
+        <li><code>ROUND(x, digits?)</code> &nbsp;/&nbsp; <code>ROUNDUP</code> &nbsp;/&nbsp; <code>ROUNDDOWN</code></li>
+      </ul>
+      <div style="font-size:12px;color:#475569;">Shorthand: <code>(condition, trueValue, falseValue?)</code> — <code>=</code> prefix optional</div>
+    </div>
+
+    <!-- Input -->
+    <div class="input-section">
+      <div class="input-label-row">
+        <label for="excelInput">Excel Formula Input</label>
+        <span id="charCounter">0 chars</span>
       </div>
+      <textarea id="excelInput" placeholder="Example: =IF(AND(A > 1, B &lt; 5), ROUNDUP(C, 2), 0)"></textarea>
+
+      <!-- Example chips -->
+      <div class="example-chips">
+        <span>Try:</span>
+        <button class="chip" data-formula="=IF(A > 10, 100, 0)">=IF(A &gt; 10, 100, 0)</button>
+        <button class="chip" data-formula="=MIN(A, MAX(B, C))">=MIN(A, MAX(B, C))</button>
+        <button class="chip" data-formula="=IF(AND(A > 1, B < 5), ROUNDUP(C, 2), 0)">=IF(AND(A &gt; 1, B &lt; 5), ROUNDUP(C, 2), 0)</button>
+        <button class="chip" data-formula="=IF(OR(A == 0, B == 0), 0, MAX(A, B))">=IF(OR(A == 0, B == 0), 0, MAX(A, B))</button>
+      </div>
+
+      <div class="button-row">
+        <button id="convertBtn">Convert</button>
+        <button id="clearBtn" class="btn-secondary">Clear</button>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <h2>Result</h2>
+    <div id="validationBadge"></div>
+
+    <div class="output-row">
+      <!-- Pseudocode pane -->
+      <div class="output-pane">
+        <h3>
+          Converted Pseudocode
+          <button id="copyBtn" title="Copy output">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="2" width="6" height="4" rx="1" ry="1"/>
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+            </svg>
+          </button>
+        </h3>
+        <pre id="result" class="code-output">Awaiting input…</pre>
+        <div id="copyToast" class="copy-toast hidden">✅ Copied!</div>
+      </div>
+
+      <!-- Explanation pane -->
       <div class="output-pane">
         <h3>Explanation</h3>
-        <div id="explanation" style="white-space: pre-wrap; color: #0f172a; font-size: 15px; min-height: 220px;">No conversion yet.</div>
+        <div id="explanation" style="min-height: 80px;">No conversion yet.</div>
       </div>
     </div>
-    <p id="copyStatus" style="color:#065f46; font-size:13px; margin-top:6px;"></p>
+
   </div>
   <script src="app.js"></script>
 </body>

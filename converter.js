@@ -21,6 +21,51 @@ function splitArgs(text) {
   return result;
 }
 
+/**
+ * Splits `expr` on bare occurrences of `keyword` at parenthesis depth 0.
+ * For alphabetic keywords (AND, OR), word boundaries are enforced and a
+ * leading `$` is treated as part of an identifier (not a word boundary).
+ * For operator tokens (&&, ||), plain substring matching at depth 0 is used.
+ * Returns an array of trimmed parts; if no split occurs, returns [expr].
+ */
+function splitInfixByKeyword(expr, keyword) {
+  const result = [];
+  let depth = 0;
+  let start = 0;
+  const kwUpper = keyword.toUpperCase();
+  const kwLen = keyword.length;
+  const isAlpha = /^[A-Za-z]+$/.test(keyword);
+
+  let i = 0;
+  while (i <= expr.length - kwLen) {
+    const ch = expr[i];
+    if (ch === '(') { depth++; i++; continue; }
+    if (ch === ')') { depth--; i++; continue; }
+
+    if (depth === 0 && expr.slice(i, i + kwLen).toUpperCase() === kwUpper) {
+      let matches = true;
+      if (isAlpha) {
+        // Preceding char must be a non-word char AND must NOT be '$'
+        const prevCh = i === 0 ? null : expr[i - 1];
+        const beforeOk = prevCh === null || (/\W/.test(prevCh) && prevCh !== '$');
+        // Following char must be a non-word char
+        const nextCh = (i + kwLen < expr.length) ? expr[i + kwLen] : null;
+        const afterOk = nextCh === null || /\W/.test(nextCh);
+        matches = beforeOk && afterOk;
+      }
+      if (matches) {
+        result.push(expr.slice(start, i).trim());
+        start = i + kwLen;
+        i += kwLen;
+        continue;
+      }
+    }
+    i++;
+  }
+  result.push(expr.slice(start).trim());
+  return result;
+}
+
 function normalizeComparisonOps(str) {
   let s = str;
   s = s.replace(/\s*<=\s*/g, ' <= ');
@@ -30,11 +75,17 @@ function normalizeComparisonOps(str) {
   s = s.replace(/\s*>\s*/g, ' > ');
   s = s.replace(/\s*==\s*/g, ' == ');
   s = s.replace(/([^><=!])=([^=])/g, '$1 == $2');
-  s = s.replace(/\bAND\b/gi, '&&');
-  s = s.replace(/\bOR\b/gi, '||');
-  s = s.replace(/\|\|/g, ' || ');
-  s = s.replace(/&&/g, ' && ');
   return s.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Given a number of decimal places `d`, returns the corresponding step
+ * as a numeric string (e.g. d=2 → "0.01", d=0 → "1", d=-1 → "10").
+ */
+function decimalPlacesToStep(d) {
+  if (d === 0) return '1';
+  if (d > 0) return (1 / Math.pow(10, d)).toFixed(d);
+  return String(Math.pow(10, -d));
 }
 
 function isWrappedWithParentheses(text) {
@@ -81,6 +132,8 @@ function toPseudocode(rawInput) {
     const funcMatch = expr.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)$/);
     const topLevelArgs = splitArgs(expr);
 
+    // Shorthand ternary: (condition, trueValue, falseValue?) — handle before infix split
+    // so that e.g. "(A > 1 OR B < 5, 500, 0)" correctly treats the OR as a condition.
     if (!funcMatch && topLevelArgs.length >= 2) {
       const condition = convert(topLevelArgs[0]);
       const trueExpr = convert(topLevelArgs[1]);
@@ -134,10 +187,16 @@ function toPseudocode(rawInput) {
         const value = convert(args[0]);
         let step = '1';
         if (args.length >= 2) {
-          step = convert(args[1]).trim();
+          const rawDigits = args[1].trim();
+          const digitsNum = parseInt(rawDigits, 10);
+          if (!isNaN(digitsNum) && String(digitsNum) === rawDigits) {
+            step = decimalPlacesToStep(digitsNum);
+          } else {
+            step = convert(rawDigits).trim();
+          }
         }
         if (step === '0' || step === '0.0') {
-          throw new Error('ROUND: step X cannot be zero');
+          throw new Error('ROUND: step cannot be zero');
         }
         const modExpr = `(${value} % ${step})`;
         const baseExpr = `(${value} - ${modExpr})`;
@@ -148,10 +207,16 @@ function toPseudocode(rawInput) {
         const value = convert(args[0]);
         let step = '1';
         if (args.length >= 2) {
-          step = convert(args[1]).trim();
+          const rawDigits = args[1].trim();
+          const digitsNum = parseInt(rawDigits, 10);
+          if (!isNaN(digitsNum) && String(digitsNum) === rawDigits) {
+            step = decimalPlacesToStep(digitsNum);
+          } else {
+            step = convert(rawDigits).trim();
+          }
         }
         if (step === '0' || step === '0.0') {
-          throw new Error('ROUNDUP: step X cannot be zero');
+          throw new Error('ROUNDUP: step cannot be zero');
         }
         const modExpr = `(${value} % ${step})`;
         return `((${value}) - (${modExpr}) + ((${modExpr}) ? ${step} : 0))`;
@@ -161,10 +226,16 @@ function toPseudocode(rawInput) {
         const value = convert(args[0]);
         let step = '1';
         if (args.length >= 2) {
-          step = convert(args[1]).trim();
+          const rawDigits = args[1].trim();
+          const digitsNum = parseInt(rawDigits, 10);
+          if (!isNaN(digitsNum) && String(digitsNum) === rawDigits) {
+            step = decimalPlacesToStep(digitsNum);
+          } else {
+            step = convert(rawDigits).trim();
+          }
         }
         if (step === '0' || step === '0.0') {
-          throw new Error('ROUNDDOWN: step X cannot be zero');
+          throw new Error('ROUNDDOWN: step cannot be zero');
         }
         const modExpr = `(${value} % ${step})`;
         return `((${value}) - (${modExpr}))`;
@@ -173,22 +244,28 @@ function toPseudocode(rawInput) {
       throw new Error(`Unsupported function '${name}' - only IF, MIN, MAX, AND, OR, ROUND, ROUNDUP, ROUNDDOWN are allowed.`);
     }
 
-    let converted = normalizeComparisonOps(expr);
-
-    if (converted.includes(' && ')) {
-      const parts = converted.split(' && ').map(p => p.trim());
-      const sumExpr = parts.map(p => `(${p} ? 1 : 0)`).join(' + ');
-      converted = `(${sumExpr} == ${parts.length})`;
-    } else if (converted.includes(' || ')) {
-      const parts = converted.split(' || ').map(p => p.trim());
-      const sumExpr = parts.map(p => `(${p} ? 1 : 0)`).join(' + ');
-      converted = `(${sumExpr} > 0)`;
+    // Handle infix AND/OR/&&/|| at depth 0 with a depth-aware split so that
+    // operators inside nested parentheses are never split on.
+    for (const [kw, isAnd] of [['AND', true], ['OR', false], ['&&', true], ['||', false]]) {
+      const parts = splitInfixByKeyword(expr, kw);
+      if (parts.length >= 2 && parts.every(p => p !== '')) {
+        const convertedArgs = parts.map(convert);
+        const sumExpr = convertedArgs.map(p => `(${p} ? 1 : 0)`).join(' + ');
+        return isAnd
+          ? `(${sumExpr} == ${parts.length})`
+          : `(${sumExpr} > 0)`;
+      }
     }
 
-    return converted;
+    return normalizeComparisonOps(expr);
   }
 
   const converted = convert(e);
+
+  // Post-conversion guard (Bug 3): ensure no forbidden tokens leaked through.
+  if (/\|\|/.test(converted) || /&&/.test(converted) || /\bAND\b/.test(converted) || /\bOR\b/.test(converted)) {
+    throw new Error(`Conversion produced forbidden tokens (||, &&, AND, OR) in output: ${converted}`);
+  }
 
   function parseTernaryStructure(code) {
     code = code.trim();
@@ -352,6 +429,8 @@ function toPseudocode(rawInput) {
 module.exports = {
   toPseudocode,
   splitArgs,
+  splitInfixByKeyword,
   normalizeComparisonOps,
-  isWrappedWithParentheses
+  isWrappedWithParentheses,
+  decimalPlacesToStep
 };
