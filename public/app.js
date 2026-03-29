@@ -14,11 +14,20 @@ function escapeHtml(text) {
 }
 
 function highlightExplanation(text) {
-  const tokenRegex = /\b(IF|THEN|ELSE)\b|\$[a-zA-Z0-9_]+|\b[0-9]+(?:\.[0-9]+)?\b|<=|>=|==|!=|[+\-*\/%?:()]|\n|[ \t]+|./g;
+  const tokenRegex = /\[\d+\]|---|Step \d+:|→ If YES:|→ If NO:|condition:|if true:|if false:|[┌├└│]|\b(IF|THEN|ELSE)\b|\$[a-zA-Z0-9_]+|\b[0-9]+(?:\.[0-9]+)?\b|<=|>=|==|!=|[+\-*\/%?:()]|\n|[ \t]+|./g;
 
   return text.replace(tokenRegex, (token) => {
     if (token === '\n') return '<br />';
     if (/^[ \t]+$/.test(token)) return token.replace(/ /g, '&nbsp;').replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
+    if (/^\[\d+\]$/.test(token)) return `<span class="token-depth">${token}</span>`;
+    if (token === 'condition:') return `<span class="token-label-cond">${token}</span>`;
+    if (token === 'if true:') return `<span class="token-label-true">${token}</span>`;
+    if (token === 'if false:') return `<span class="token-label-false">${token}</span>`;
+    if (/^[┌├└│]$/.test(token)) return `<span class="token-connector">${token}</span>`;
+    if (/^Step \d+:$/.test(token)) return `<span class="token-step">${token}</span>`;
+    if (token === '→ If YES:') return `<span class="token-yes">${token}</span>`;
+    if (token === '→ If NO:') return `<span class="token-no">${token}</span>`;
+    if (token === '---') return '<hr style="border-color:#334155;margin:14px 0">';
     if (/^(IF|THEN|ELSE)$/.test(token)) return `<span class="token-keyword">${token}</span>`;
     if (/^\$[a-zA-Z0-9_]+$/.test(token)) return `<span class="token-variable">${token}</span>`;
     if (/^[0-9]+(?:\.[0-9]+)?$/.test(token)) return `<span class="token-number">${token}</span>`;

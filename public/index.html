@@ -26,7 +26,7 @@
       background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
       color: #e2e8f0;
       font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
-      font-size: 14px;
+      font-size: 15px;
       line-height: 1.6;
       padding: 20px;
       border-radius: 10px;
@@ -34,14 +34,30 @@
       white-space: pre;
       word-break: normal;
       overflow-x: auto;
+      max-height: 520px;
+      overflow-y: auto;
     }
-    
+
+    .explain-highlighted-code hr {
+      border: none;
+      border-top: 1px solid #334155;
+      margin: 14px 0;
+    }
+
     .token-keyword { color: #c586c0; font-weight: 600; }
     .token-operator { color: #f59e0b; font-weight: 500; }
     .token-variable { color: #7dd3fc; font-weight: 500; }
     .token-number { color: #fbbf24; font-weight: 500; }
     .token-bracket { color: #94a3b8; font-weight: 600; }
     .token-unknown { color: #cbd5e1; }
+    .token-depth { color: #64748b; }
+    .token-label-cond { color: #f59e0b; }
+    .token-label-true { color: #4ade80; }
+    .token-label-false { color: #f87171; }
+    .token-connector { color: #475569; }
+    .token-step { color: #67e8f9; }
+    .token-yes { color: #4ade80; }
+    .token-no { color: #f87171; }
   </style>
 </head>
 <body>
