@@ -254,33 +254,41 @@ function toPseudocode(rawInput) {
     };
   }
 
-  function formatTernaryStructure(structure, depth = 0) {
-    const indent = '    '.repeat(depth);
+  function formatTernaryStructure(structure, depth = 1) {
     const lines = [];
+    const prefix = `[${depth}] ` + '  '.repeat(depth - 1);
 
     if (structure.type === 'value') {
-      lines.push(indent + structure.content);
+      lines.push(prefix + structure.content);
       return lines;
     }
 
-    lines.push(indent + 'IF');
-    if (structure.condition.type === 'value') {
-      lines.push(indent + '    ' + structure.condition.content);
+    const condStr = structure.condition.type === 'value'
+      ? structure.condition.content
+      : '(nested)';
+
+    if (condStr.length > 60) {
+      const parts = condStr.split(' + ');
+      const contIndent = prefix + '    ';
+      lines.push(prefix + '┌ condition: ' + parts[0]);
+      for (let i = 1; i < parts.length; i++) {
+        lines.push(contIndent + parts[i]);
+      }
     } else {
-      lines.push(...formatTernaryStructure(structure.condition, depth + 1));
+      lines.push(prefix + '┌ condition: ' + condStr);
     }
 
-    lines.push(indent + 'THEN');
     if (structure.trueVal.type === 'value') {
-      lines.push(indent + '    ' + structure.trueVal.content);
+      lines.push(prefix + '├ if true:  ' + structure.trueVal.content);
     } else {
+      lines.push(prefix + '├ if true:');
       lines.push(...formatTernaryStructure(structure.trueVal, depth + 1));
     }
 
-    lines.push(indent + 'ELSE');
     if (structure.falseVal.type === 'value') {
-      lines.push(indent + '    ' + structure.falseVal.content);
+      lines.push(prefix + '└ if false: ' + structure.falseVal.content);
     } else {
+      lines.push(prefix + '└ if false:');
       lines.push(...formatTernaryStructure(structure.falseVal, depth + 1));
     }
 
@@ -296,22 +304,44 @@ function toPseudocode(rawInput) {
   function buildHumanExplanation(output) {
     const parsed = parseTernaryStructure(output);
 
-    const human = (node) => {
-      if (node.type === 'value') {
-        return node.content;
-      }
-      const cond = human(node.condition);
-      const tVal = human(node.trueVal);
-      const fVal = human(node.falseVal);
-      return `if ${cond} then ${tVal} else ${fVal}`;
-    };
+    const steps = [];
+    const stepMap = new WeakMap();
 
-    return human(parsed);
+    function assignSteps(node) {
+      if (node.type !== 'ternary') return;
+      const stepNum = steps.length + 1;
+      stepMap.set(node, stepNum);
+      steps.push(node);
+      assignSteps(node.trueVal);
+      assignSteps(node.falseVal);
+    }
+    assignSteps(parsed);
+
+    const lines = [];
+    for (const node of steps) {
+      const stepNum = stepMap.get(node);
+      const condStr = node.condition.type === 'value' ? node.condition.content : '(nested)';
+      lines.push(`Step ${stepNum}: Check if ${condStr}`);
+
+      if (node.trueVal.type === 'value') {
+        lines.push(`  → If YES: result is ${node.trueVal.content}`);
+      } else {
+        lines.push(`  → If YES: go to Step ${stepMap.get(node.trueVal)}`);
+      }
+
+      if (node.falseVal.type === 'value') {
+        lines.push(`  → If NO:  result is ${node.falseVal.content}`);
+      } else {
+        lines.push(`  → If NO:  go to Step ${stepMap.get(node.falseVal)}`);
+      }
+    }
+
+    return lines.join('\n');
   }
 
   const structuredExplanation = buildFormattedExplanation(converted);
   const naturalExplanation = buildHumanExplanation(converted);
-  const combinedExplanation = `${structuredExplanation}\n\n${naturalExplanation}`;
+  const combinedExplanation = `${structuredExplanation}\n\n---\n\n${naturalExplanation}`;
 
   return {
     pseudocode: converted,

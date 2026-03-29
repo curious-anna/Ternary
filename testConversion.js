@@ -21,5 +21,5 @@ const tests = [
 for (const t of tests) {
   const out = toPseudocode(t);
   console.log(`${t} => ${out.pseudocode}`);
-  console.log('explanation:\n' + out.explanation.join('\n') + '\n');
+  console.log('explanation:\n' + out.explanation + '\n');
 }
