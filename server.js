@@ -7,6 +7,10 @@ const port = process.env.PORT || 3010;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ ok: true });
+});
+
 app.post('/api/convert', (req, res) => {
   const { formula } = req.body;
   if (!formula || typeof formula !== 'string') {

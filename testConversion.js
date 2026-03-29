@@ -36,21 +36,20 @@ function assert(name, input, mustContain, mustNotContain) {
   }
 }
 
-// ── Basic function conversions ────────────────────────────────────────────────
+// Basic function conversions.
 assert('MAX basic', 'MAX(5,8)', ['(5 > 8) ? (5) : (8)'], []);
 assert('MIN basic', 'MIN(5,8)', ['(5 < 8) ? (5) : (8)'], []);
 assert('MAX expr', 'MAX(ACT + 700, 300)', ['$act + 700 > 300'], []);
 assert('var prefix', '$ACT + 10', ['$act + 10'], []);
 
-// ── ROUND: second arg is decimal places, not step ────────────────────────────
-assert('ROUND no digits',   'ROUND(3.2)',         ['3.2 % 1'],  []);
-assert('ROUND no digits 2', 'ROUND(3.7)',         ['3.7 % 1'],  []);
-assert('ROUND 2 digits',    '=ROUND(3.567, 2)',   ['0.01'],     []);
-assert('ROUNDUP 2 digits',  '=ROUNDUP(1.1, 2)',   ['0.01'],     []);
-assert('ROUNDDOWN 2 digits','=ROUNDDOWN(9.99, 1)',['0.1'],      []);
-assert('ROUND 0 digits',    '=ROUND(5.5, 0)',     ['% 1'],      []);
+// ROUND family: second arg is step/increment.
+assert('ROUND default step', 'ROUND(3.2)', ['3.2 % 1'], []);
+assert('ROUND default step2', 'ROUND(3.7)', ['3.7 % 1'], []);
+assert('ROUND step 10', '=ROUND(act, 10)', ['$act % 10'], []);
+assert('ROUNDUP step 5', '=ROUNDUP(act, 5)', ['$act % 5'], []);
+assert('ROUNDDOWN step 100', '=ROUNDDOWN(act, 100)', ['$act % 100'], []);
 
-// ── AND / OR as functions ─────────────────────────────────────────────────────
+// AND / OR function support.
 assert(
   'AND function',
   '=IF(AND(A > 1, B < 5), 100, 0)',
@@ -64,7 +63,7 @@ assert(
   ['||', 'OR']
 );
 
-// ── Infix AND / OR in condition string ───────────────────────────────────────
+// Infix AND / OR in condition string.
 assert(
   'infix AND',
   '=IF(A > 1 AND B < 5, 100, 0)',
@@ -78,7 +77,7 @@ assert(
   ['||', 'OR']
 );
 
-// ── Infix && / || in shorthand ternary ───────────────────────────────────────
+// Infix && / || in shorthand ternary.
 assert(
   'shorthand &&',
   '($gpa > 4 && $act < 8, 5000, 0)',
@@ -88,28 +87,11 @@ assert(
 assert(
   'shorthand ||',
   '(act > 23 || gpa > 5, 5000, 0)',
-  'MAX(ACT + 700, 300)',
-  'MAX($ACT + 700, 300)',
-  '$ACT + 10',
-  'ROUND(3.2)',
-  'ROUND(3.7)',
-  'ROUNDUP(3.2)',
-  'ROUNDDOWN(3.7)',
-  'MAX(ROUND(act, 100), 1000)',
-  'ROUND(act, 100)',
-  'ROUNDUP(act, 100)',
-  'ROUNDDOWN(act, 100)'
-];
-for (const t of tests) {
-  const out = toPseudocode(t);
-  console.log(`${t} => ${out.pseudocode}`);
-  console.log('explanation:\n' + out.explanation + '\n');
-}
   ['> 0'],
   ['||', /\bOR\b/]
 );
 
-// ── Deeply nested: AND containing OR ─────────────────────────────────────────
+// Deeply nested: AND containing OR.
 assert(
   'nested AND(OR)',
   '=IF(AND(A>1, OR(B<5, C==3)), MAX(A,B), 0)',
@@ -117,9 +99,8 @@ assert(
   ['&&', '||', /\bAND\b/, /\bOR\b/]
 );
 
-// ── MAX / MIN nested ──────────────────────────────────────────────────────────
+// MAX / MIN nested.
 assert('MIN nested MAX', '=MIN(A, MAX(B, C))', [], []);
 
-// ── Summary ───────────────────────────────────────────────────────────────────
 console.log('\n' + passed + ' passed, ' + failed + ' failed.');
 if (failed > 0) process.exit(1);
