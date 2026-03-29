@@ -1,21 +1,21 @@
-const resultEl = document.getElementById('result');
+const resultEl      = document.getElementById('result');
 const explanationEl = document.getElementById('explanation');
-const copyStatusEl = document.getElementById('copyStatus');
+const inputEl       = document.getElementById('excelInput');
+const charCounterEl = document.getElementById('charCounter');
+const validationEl  = document.getElementById('validationBadge');
+const copyToastEl   = document.getElementById('copyToast');
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function escapeHtml(text) {
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  };
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
 function highlightExplanation(text) {
   const tokenRegex = /\[\d+\]|---|Step \d+:|→ If YES:|→ If NO:|condition:|if true:|if false:|[┌├└│]|\b(IF|THEN|ELSE)\b|\$[a-zA-Z0-9_]+|\b[0-9]+(?:\.[0-9]+)?\b|<=|>=|==|!=|[+\-*\/%?:()]|\n|[ \t]+|./g;
 
+  const tokenRegex = /\b(IF|THEN|ELSE)\b|\$[a-zA-Z0-9_]+|\b[0-9]+(?:\.[0-9]+)?\b|<=|>=|==|!=|[+\-*\/%?:()]|\n|[ \t]+|./g;
   return text.replace(tokenRegex, (token) => {
     if (token === '\n') return '<br />';
     if (/^[ \t]+$/.test(token)) return token.replace(/ /g, '&nbsp;').replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
@@ -37,11 +37,23 @@ function highlightExplanation(text) {
   });
 }
 
+function showValidationBadge(pseudocode) {
+  const forbidden = /\|\|/.test(pseudocode) || /&&/.test(pseudocode) ||
+    /\bAND\b/.test(pseudocode) || /\bOR\b/.test(pseudocode);
+  validationEl.innerHTML = forbidden
+    ? '<span class="badge-invalid">⚠️ Contains forbidden operators</span>'
+    : '<span class="badge-valid">✅ Valid pseudocode</span>';
+}
+
+// ── Conversion ────────────────────────────────────────────────────────────────
+
 async function convertFormula() {
-  const input = document.getElementById('excelInput').value.trim();
+  const input = inputEl.value.trim();
   if (!input) {
-    resultEl.innerText = 'Please enter an Excel-style expression.';
+    resultEl.textContent = 'Please enter an Excel-style expression.';
+    resultEl.className = 'code-output';
     explanationEl.innerHTML = '';
+    validationEl.innerHTML = '';
     return;
   }
 
@@ -55,38 +67,92 @@ async function convertFormula() {
     const json = await resp.json();
 
     if (!resp.ok) {
-      resultEl.innerText = `Error: ${json.error || 'unknown'}`;
+      resultEl.textContent = 'Error: ' + (json.error || 'unknown');
+      resultEl.className = 'code-output error';
       explanationEl.innerHTML = '';
+      validationEl.innerHTML = '';
       return;
     }
 
-    resultEl.innerText = json.pseudocode;
+    resultEl.textContent = json.pseudocode;
+    resultEl.className = 'code-output';
+    showValidationBadge(json.pseudocode);
 
     const formatted = typeof json.explanation === 'string' ? json.explanation : '';
-    const highlighted = highlightExplanation(formatted);
-    explanationEl.innerHTML = `<div class="explain-highlighted-code">${highlighted}</div>`;
+    explanationEl.innerHTML = `<div class="explain-highlighted-code">${highlightExplanation(formatted)}</div>`;
 
-    copyStatusEl.innerText = '';
   } catch (err) {
-    resultEl.innerText = 'Network error: ' + err.message;
+    resultEl.textContent = 'Network error: ' + err.message;
+    resultEl.className = 'code-output error';
     explanationEl.innerHTML = '';
-    copyStatusEl.innerText = '';
+    validationEl.innerHTML = '';
   }
 }
 
+// ── Copy with SVG button & toast ─────────────────────────────────────────────
+
 async function copyResult() {
-  const pseudo = resultEl.innerText.trim();
-  if (!pseudo || pseudo === 'Awaiting input...' || pseudo.startsWith('Error:')) {
-    copyStatusEl.innerText = 'Nothing to copy yet.';
+  const pseudo = resultEl.textContent.trim();
+  if (!pseudo || pseudo === 'Awaiting input…' || pseudo.startsWith('Error:') || pseudo.startsWith('Please') || pseudo.startsWith('Network')) {
     return;
   }
   try {
     await navigator.clipboard.writeText(pseudo);
-    copyStatusEl.innerText = 'Copied to clipboard!';
+    copyToastEl.classList.remove('hidden');
+    setTimeout(() => copyToastEl.classList.add('hidden'), 2000);
   } catch (e) {
-    copyStatusEl.innerText = 'Copy failed: ' + e.message;
+    copyToastEl.textContent = 'Copy failed';
+    copyToastEl.classList.remove('hidden');
+    setTimeout(() => copyToastEl.classList.add('hidden'), 2000);
   }
 }
 
+// ── Character counter ─────────────────────────────────────────────────────────
+
+function updateCharCounter() {
+  charCounterEl.textContent = inputEl.value.length + ' chars';
+}
+
+// ── Debounced live translation ────────────────────────────────────────────────
+
+let debounceTimer = null;
+inputEl.addEventListener('input', () => {
+  updateCharCounter();
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(convertFormula, 300);
+});
+
+// ── Example chips ─────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    inputEl.value = chip.dataset.formula;
+    updateCharCounter();
+    convertFormula();
+  });
+});
+
+// ── Clear button ──────────────────────────────────────────────────────────────
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  inputEl.value = '';
+  updateCharCounter();
+  resultEl.textContent = 'Awaiting input…';
+  resultEl.className = 'code-output';
+  explanationEl.innerHTML = 'No conversion yet.';
+  validationEl.innerHTML = '';
+  copyToastEl.classList.add('hidden');
+});
+
+// ── Convert button & keyboard shortcut ───────────────────────────────────────
+
 document.getElementById('convertBtn').addEventListener('click', convertFormula);
-document.getElementById('copySymbol').addEventListener('click', copyResult);
+
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    convertFormula();
+  }
+});
+
+document.getElementById('copyBtn').addEventListener('click', copyResult);
