@@ -4,7 +4,8 @@
   "description": "Excel-like input to pseudocode converter full-stack app",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node testConversion.js"
   },
   "dependencies": {
     "express": "^4.18.2"
