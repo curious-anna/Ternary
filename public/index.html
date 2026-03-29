@@ -276,7 +276,7 @@
         <li><code>IF(condition, trueValue, falseValue?)</code> — falseValue defaults to 0</li>
         <li><code>MIN(a, b, …)</code> &nbsp;/&nbsp; <code>MAX(a, b, …)</code></li>
         <li><code>AND(a, b, …)</code> &nbsp;/&nbsp; <code>OR(a, b, …)</code> — or infix <code>A AND B</code> / <code>A OR B</code></li>
-        <li><code>ROUND(x, digits?)</code> &nbsp;/&nbsp; <code>ROUNDUP</code> &nbsp;/&nbsp; <code>ROUNDDOWN</code></li>
+        <li><code>ROUND(x, step?)</code> &nbsp;/&nbsp; <code>ROUNDUP(x, step?)</code> &nbsp;/&nbsp; <code>ROUNDDOWN(x, step?)</code> — 2nd arg is the rounding increment (e.g. 10 = nearest 10, 5 = nearest 5); defaults to 1</li>
       </ul>
       <div style="font-size:12px;color:#475569;">Shorthand: <code>(condition, trueValue, falseValue?)</code> — <code>=</code> prefix optional</div>
     </div>
@@ -294,7 +294,7 @@
         <span>Try:</span>
         <button class="chip" data-formula="=IF(A > 10, 100, 0)">=IF(A &gt; 10, 100, 0)</button>
         <button class="chip" data-formula="=MIN(A, MAX(B, C))">=MIN(A, MAX(B, C))</button>
-        <button class="chip" data-formula="=IF(AND(A > 1, B < 5), ROUNDUP(C, 2), 0)">=IF(AND(A &gt; 1, B &lt; 5), ROUNDUP(C, 2), 0)</button>
+        <button class="chip" data-formula="=IF(AND(A > 1, B < 5), ROUNDUP(C, 5), 0)">=IF(AND(A &gt; 1, B &lt; 5), ROUNDUP(C, 5), 0)</button>
         <button class="chip" data-formula="=IF(OR(A == 0, B == 0), 0, MAX(A, B))">=IF(OR(A == 0, B == 0), 0, MAX(A, B))</button>
       </div>
 

@@ -14,8 +14,6 @@ function escapeHtml(text) {
 
 function highlightExplanation(text) {
   const tokenRegex = /\[\d+\]|---|Step \d+:|→ If YES:|→ If NO:|condition:|if true:|if false:|[┌├└│]|\b(IF|THEN|ELSE)\b|\$[a-zA-Z0-9_]+|\b[0-9]+(?:\.[0-9]+)?\b|<=|>=|==|!=|[+\-*\/%?:()]|\n|[ \t]+|./g;
-
-  const tokenRegex = /\b(IF|THEN|ELSE)\b|\$[a-zA-Z0-9_]+|\b[0-9]+(?:\.[0-9]+)?\b|<=|>=|==|!=|[+\-*\/%?:()]|\n|[ \t]+|./g;
   return text.replace(tokenRegex, (token) => {
     if (token === '\n') return '<br />';
     if (/^[ \t]+$/.test(token)) return token.replace(/ /g, '&nbsp;').replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;');

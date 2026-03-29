@@ -187,13 +187,7 @@ function toPseudocode(rawInput) {
         const value = convert(args[0]);
         let step = '1';
         if (args.length >= 2) {
-          const rawDigits = args[1].trim();
-          const digitsNum = parseInt(rawDigits, 10);
-          if (!isNaN(digitsNum) && String(digitsNum) === rawDigits) {
-            step = decimalPlacesToStep(digitsNum);
-          } else {
-            step = convert(rawDigits).trim();
-          }
+          step = convert(args[1].trim()).trim();
         }
         if (step === '0' || step === '0.0') {
           throw new Error('ROUND: step cannot be zero');
@@ -207,13 +201,7 @@ function toPseudocode(rawInput) {
         const value = convert(args[0]);
         let step = '1';
         if (args.length >= 2) {
-          const rawDigits = args[1].trim();
-          const digitsNum = parseInt(rawDigits, 10);
-          if (!isNaN(digitsNum) && String(digitsNum) === rawDigits) {
-            step = decimalPlacesToStep(digitsNum);
-          } else {
-            step = convert(rawDigits).trim();
-          }
+          step = convert(args[1].trim()).trim();
         }
         if (step === '0' || step === '0.0') {
           throw new Error('ROUNDUP: step cannot be zero');
@@ -226,13 +214,7 @@ function toPseudocode(rawInput) {
         const value = convert(args[0]);
         let step = '1';
         if (args.length >= 2) {
-          const rawDigits = args[1].trim();
-          const digitsNum = parseInt(rawDigits, 10);
-          if (!isNaN(digitsNum) && String(digitsNum) === rawDigits) {
-            step = decimalPlacesToStep(digitsNum);
-          } else {
-            step = convert(rawDigits).trim();
-          }
+          step = convert(args[1].trim()).trim();
         }
         if (step === '0' || step === '0.0') {
           throw new Error('ROUNDDOWN: step cannot be zero');
@@ -325,10 +307,29 @@ function toPseudocode(rawInput) {
 
     return {
       type: 'ternary',
+      conditionRaw: condition,
       condition: parseTernaryStructure(condition),
       trueVal: parseTernaryStructure(trueVal),
       falseVal: parseTernaryStructure(falseVal)
     };
+  }
+
+  // Strip redundant outer parentheses for display only.
+  function stripDisplayParens(s) {
+    s = String(s).trim();
+    let changed = true;
+    while (changed) {
+      changed = false;
+      if (s.startsWith('(') && s.endsWith(')')) {
+        let d = 0, ok = true;
+        for (let i = 0; i < s.length; i++) {
+          if (s[i] === '(') d++;
+          else if (s[i] === ')') { d--; if (d === 0 && i < s.length - 1) { ok = false; break; } }
+        }
+        if (ok) { s = s.slice(1, -1).trim(); changed = true; }
+      }
+    }
+    return s;
   }
 
   function formatTernaryStructure(structure, depth = 1) {
@@ -336,34 +337,37 @@ function toPseudocode(rawInput) {
     const prefix = `[${depth}] ` + '  '.repeat(depth - 1);
 
     if (structure.type === 'value') {
-      lines.push(prefix + structure.content);
+      lines.push(prefix + stripDisplayParens(structure.content));
       return lines;
     }
 
-    const condStr = structure.condition.type === 'value'
-      ? structure.condition.content
-      : '(nested)';
+    // Always show the real condition text (stored during parsing).
+    const rawCond = structure.conditionRaw !== undefined
+      ? structure.conditionRaw
+      : (structure.condition.type === 'value' ? structure.condition.content : '');
+    const condStr = stripDisplayParens(rawCond);
 
-    if (condStr.length > 60) {
+    // Only wrap on ' + ' when the condition is an AND/OR sum (each term ends with '? 1 : 0').
+    if (condStr.length > 72 && condStr.includes('? 1 : 0')) {
       const parts = condStr.split(' + ');
       const contIndent = prefix + '    ';
       lines.push(prefix + '┌ condition: ' + parts[0]);
       for (let i = 1; i < parts.length; i++) {
-        lines.push(contIndent + parts[i]);
+        lines.push(contIndent + '+ ' + parts[i]);
       }
     } else {
       lines.push(prefix + '┌ condition: ' + condStr);
     }
 
     if (structure.trueVal.type === 'value') {
-      lines.push(prefix + '├ if true:  ' + structure.trueVal.content);
+      lines.push(prefix + '├ if true:  ' + stripDisplayParens(structure.trueVal.content));
     } else {
       lines.push(prefix + '├ if true:');
       lines.push(...formatTernaryStructure(structure.trueVal, depth + 1));
     }
 
     if (structure.falseVal.type === 'value') {
-      lines.push(prefix + '└ if false: ' + structure.falseVal.content);
+      lines.push(prefix + '└ if false: ' + stripDisplayParens(structure.falseVal.content));
     } else {
       lines.push(prefix + '└ if false:');
       lines.push(...formatTernaryStructure(structure.falseVal, depth + 1));
@@ -394,22 +398,34 @@ function toPseudocode(rawInput) {
     }
     assignSteps(parsed);
 
+    if (steps.length === 0) {
+      return `No conditional logic — result: ${stripDisplayParens(parsed.content)}`;
+    }
+
     const lines = [];
+    lines.push(`${steps.length} decision step${steps.length > 1 ? 's' : ''}:`);
+
     for (const node of steps) {
       const stepNum = stepMap.get(node);
-      const condStr = node.condition.type === 'value' ? node.condition.content : '(nested)';
-      lines.push(`Step ${stepNum}: Check if ${condStr}`);
+      const rawCond = node.conditionRaw !== undefined
+        ? node.conditionRaw
+        : (node.condition.type === 'value' ? node.condition.content : '');
+      const condStr = stripDisplayParens(rawCond);
+
+      lines.push('');
+      lines.push(`Step ${stepNum}:`);
+      lines.push(`  condition:  ${condStr}`);
 
       if (node.trueVal.type === 'value') {
-        lines.push(`  → If YES: result is ${node.trueVal.content}`);
+        lines.push(`  → If YES:  result = ${stripDisplayParens(node.trueVal.content)}`);
       } else {
-        lines.push(`  → If YES: go to Step ${stepMap.get(node.trueVal)}`);
+        lines.push(`  → If YES:  go to Step ${stepMap.get(node.trueVal)}`);
       }
 
       if (node.falseVal.type === 'value') {
-        lines.push(`  → If NO:  result is ${node.falseVal.content}`);
+        lines.push(`  → If NO:   result = ${stripDisplayParens(node.falseVal.content)}`);
       } else {
-        lines.push(`  → If NO:  go to Step ${stepMap.get(node.falseVal)}`);
+        lines.push(`  → If NO:   go to Step ${stepMap.get(node.falseVal)}`);
       }
     }
 
