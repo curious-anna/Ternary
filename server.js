@@ -1,6 +1,6 @@
 const express = require('express');
 const path = require('path');
-const { toPseudocode } = require('./converter');
+const { toPseudocode, explainPseudocode, evaluateWithTrace } = require('./converter');
 const app = express();
 const port = process.env.PORT || 3010;
 
@@ -36,6 +36,35 @@ app.post('/api/validate', (req, res) => {
   const forbidden = /\|\|/.test(pseudocode) || /&&/.test(pseudocode) ||
     /\bAND\b/.test(pseudocode) || /\bOR\b/.test(pseudocode);
   res.json({ valid: !forbidden, forbidden });
+});
+
+app.post('/api/explain', (req, res) => {
+  const { pseudocode } = req.body;
+  if (!pseudocode || typeof pseudocode !== 'string') {
+    return res.status(400).json({ error: 'Missing pseudocode string in request body.' });
+  }
+  try {
+    const result = explainPseudocode(pseudocode);
+    res.json(result);
+  } catch (e) {
+    res.status(422).json({ error: 'Explanation failed: ' + e.message });
+  }
+});
+
+app.post('/api/evaluate', (req, res) => {
+  const { pseudocode, values } = req.body;
+  if (!pseudocode || typeof pseudocode !== 'string') {
+    return res.status(400).json({ error: 'Missing pseudocode string in request body.' });
+  }
+  if (!values || typeof values !== 'object') {
+    return res.status(400).json({ error: 'Missing values object in request body.' });
+  }
+  try {
+    const result = evaluateWithTrace(pseudocode, values);
+    res.json(result);
+  } catch (e) {
+    res.status(422).json({ error: 'Evaluation failed: ' + e.message });
+  }
 });
 
 app.listen(port, () => {

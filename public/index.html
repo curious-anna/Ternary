@@ -257,6 +257,435 @@
       .output-row { flex-direction: column; }
       .output-pane { min-width: unset; }
     }
+
+    /* ── Explainer toggle ────────────────────────────────────────────────── */
+    .explainer-toggle-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 28px;
+      padding: 14px 18px;
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      border: 1.5px solid #7dd3fc;
+      border-radius: 10px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .explainer-toggle-bar:hover { background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); }
+    .explainer-toggle-bar .toggle-icon {
+      font-size: 20px;
+      transition: transform 0.3s;
+    }
+    .explainer-toggle-bar.open .toggle-icon { transform: rotate(90deg); }
+    .explainer-toggle-bar .toggle-label {
+      font-size: 15px;
+      font-weight: 600;
+      color: #0c4a6e;
+    }
+    .explainer-toggle-bar .toggle-hint {
+      font-size: 12px;
+      color: #0369a1;
+      margin-left: auto;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: #cbd5e1;
+      border-radius: 12px;
+      transition: background 0.2s;
+      cursor: pointer;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 18px; height: 18px;
+      left: 3px; bottom: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle-switch input:checked + .toggle-slider { background: #2563eb; }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+    /* ── Explainer panel ─────────────────────────────────────────────────── */
+    .explainer-panel {
+      display: none;
+      margin-top: 16px;
+      animation: slideDown 0.3s ease;
+    }
+    .explainer-panel.visible { display: block; }
+
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .explainer-input-section { margin-bottom: 16px; }
+    .explainer-input-section textarea {
+      border-color: #7dd3fc;
+      background: #f0f9ff;
+    }
+    .explainer-input-section textarea:focus {
+      border-color: #0ea5e9;
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+    }
+
+    .explainer-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 10px 0 14px;
+      font-size: 13px;
+      color: #64748b;
+    }
+    .explainer-chip {
+      padding: 4px 10px;
+      font-size: 11px;
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      background: #f0f9ff;
+      color: #0369a1;
+      border: 1px solid #7dd3fc;
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .explainer-chip:hover { background: #e0f2fe; }
+
+    /* ── Explainer output tabs ───────────────────────────────────────────── */
+    .explainer-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid #e2e8f0;
+      margin-bottom: 16px;
+    }
+    .explainer-tab {
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748b;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+      margin-bottom: -2px;
+    }
+    .explainer-tab:hover { color: #0ea5e9; }
+    .explainer-tab.active {
+      color: #0284c7;
+      border-bottom-color: #0284c7;
+    }
+
+    .explainer-tab-content { display: none; }
+    .explainer-tab-content.active { display: block; }
+
+    /* ── Summary panel ───────────────────────────────────────────────────── */
+    .explain-summary {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 18px;
+      font-size: 14px;
+      line-height: 1.7;
+      color: #334155;
+      white-space: pre-wrap;
+    }
+    .explain-summary .step-header {
+      color: #0284c7;
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .explain-summary .yes-path { color: #16a34a; }
+    .explain-summary .no-path { color: #dc2626; }
+
+    /* ── Variables panel ──────────────────────────────────────────────────── */
+    .var-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .var-card {
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      transition: border-color 0.2s;
+    }
+    .var-card:focus-within { border-color: #0ea5e9; }
+    .var-card label {
+      display: block;
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .var-card label span { color: #0ea5e9; font-family: monospace; }
+    .var-card input {
+      width: 100%;
+      padding: 6px 8px;
+      font-size: 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .var-card input:focus { border-color: #0ea5e9; }
+
+    .try-btn {
+      padding: 8px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      background: #0ea5e9;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .try-btn:hover { background: #0284c7; }
+
+    /* ── Trace output ────────────────────────────────────────────────────── */
+    .trace-output {
+      margin-top: 14px;
+      padding: 16px;
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-radius: 10px;
+      border-left: 5px solid #0ea5e9;
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.8;
+      color: #e2e8f0;
+      min-height: 60px;
+    }
+    .trace-step { margin-bottom: 6px; }
+    .trace-step .trace-check { color: #fbbf24; }
+    .trace-step .trace-yes { color: #4ade80; }
+    .trace-step .trace-no { color: #f87171; }
+    .trace-result {
+      margin-top: 10px;
+      padding: 10px 14px;
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid #22c55e;
+      border-radius: 8px;
+      color: #4ade80;
+      font-weight: 700;
+      font-size: 16px;
+    }
+    .trace-error {
+      color: #f87171;
+      padding: 10px;
+      background: rgba(239, 68, 68, 0.1);
+      border-radius: 8px;
+    }
+
+    /* ── Excel formula display ───────────────────────────────────────────── */
+    .excel-formula-box {
+      background: #f0fdf4;
+      border: 1.5px solid #86efac;
+      border-radius: 10px;
+      padding: 16px 20px;
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-size: 15px;
+      color: #166534;
+      word-break: break-all;
+    }
+    .excel-formula-label {
+      display: block;
+      font-family: Inter, 'Segoe UI', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: #16a34a;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Lookup tables ───────────────────────────────────────────────────── */
+    .lookup-table-wrap {
+      margin-bottom: 20px;
+    }
+    .lookup-table-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+    .lookup-table-title .lt-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      background: #dbeafe;
+      color: #1e40af;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .lookup-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+    }
+    .lookup-table thead th {
+      background: #f1f5f9;
+      color: #334155;
+      font-weight: 700;
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 2px solid #cbd5e1;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .lookup-table tbody td {
+      padding: 7px 12px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #334155;
+      vertical-align: top;
+    }
+    .lookup-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+    .lookup-table tbody tr:nth-child(even) {
+      background: #f8fafc;
+    }
+    .lookup-table tbody tr:hover {
+      background: #eef2ff;
+    }
+    .lookup-table .lt-threshold {
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-weight: 600;
+      color: #1e40af;
+      white-space: nowrap;
+    }
+    .lookup-table .lt-result {
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      color: #0f172a;
+    }
+    .lookup-table .lt-formula-desc {
+      font-family: Inter, 'Segoe UI', sans-serif;
+      font-size: 12px;
+      color: #64748b;
+      font-style: italic;
+      display: block;
+      margin-top: 2px;
+    }
+    .lookup-table .lt-default {
+      background: #fefce8 !important;
+    }
+
+    /* ── Nested tier header ──────────────────────────────────────────────── */
+    .tier-header {
+      background: #eef2ff;
+      padding: 10px 14px;
+      border-radius: 8px 8px 0 0;
+      border: 1px solid #c7d2fe;
+      border-bottom: none;
+      font-size: 13px;
+      font-weight: 700;
+      color: #3730a3;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s;
+    }
+    .tier-header:hover { background: #e0e7ff; }
+    .tier-header .tier-arrow {
+      transition: transform 0.2s;
+      font-size: 12px;
+    }
+    .tier-header.open .tier-arrow { transform: rotate(90deg); }
+    .tier-body {
+      display: none;
+      border: 1px solid #c7d2fe;
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .tier-body.open { display: block; }
+
+    /* ── Pattern badges ──────────────────────────────────────────────────── */
+    .pattern-list { margin-bottom: 14px; }
+    .pattern-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 9999px;
+      margin: 3px 4px;
+    }
+    .pattern-badge.max { background: #dcfce7; color: #166534; }
+    .pattern-badge.min { background: #fef9c3; color: #854d0e; }
+    .pattern-badge.round { background: #e0e7ff; color: #3730a3; }
+    .pattern-badge.roundup { background: #fce7f3; color: #9d174d; }
+    .pattern-badge.clamp { background: #dbeafe; color: #1e40af; }
+    .pattern-badge.conditional { background: #fef3c7; color: #92400e; }
+    .pattern-badge.default { background: #f1f5f9; color: #475569; }
+
+    /* ── Structure breakdown box ─────────────────────────────────────────── */
+    .structure-box {
+      background: #f0f9ff;
+      border: 1.5px solid #bae6fd;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    .structure-box .structure-title {
+      font-weight: 700;
+      font-size: 14px;
+      color: #0c4a6e;
+      margin-bottom: 6px;
+    }
+    .structure-item {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin: 4px 0;
+    }
+    .structure-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      flex-shrink: 0;
+    }
+    .structure-tag.guard { background: #fef3c7; color: #92400e; }
+    .structure-tag.clamp { background: #dbeafe; color: #1e40af; }
+    .structure-tag.compare { background: #e0e7ff; color: #3730a3; }
+    .structure-tag.round { background: #f3e8ff; color: #7e22ce; }
+    .structure-desc { color: #334155; }
+
+    /* ── No-tables placeholder ───────────────────────────────────────────── */
+    .no-tables-msg {
+      color: #94a3b8;
+      font-size: 14px;
+      text-align: center;
+      padding: 30px 0;
+    }
   </style>
 </head>
 <body>
@@ -329,6 +758,78 @@
       <div class="output-pane">
         <h3>Explanation</h3>
         <div id="explanation" style="min-height: 80px;">No conversion yet.</div>
+      </div>
+    </div>
+
+    <!-- ═══ Pseudocode Explainer (optional) ═══════════════════════════════ -->
+    <div class="explainer-toggle-bar" id="explainerToggleBar">
+      <span class="toggle-icon">&#9654;</span>
+      <span class="toggle-label">Pseudocode Explainer</span>
+      <span class="toggle-hint">Paste pseudocode &amp; get a plain-English breakdown</span>
+      <label class="toggle-switch" onclick="event.stopPropagation()">
+        <input type="checkbox" id="explainerToggle" />
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="explainer-panel" id="explainerPanel">
+      <!-- Explainer input -->
+      <div class="explainer-input-section">
+        <div class="input-label-row">
+          <label for="explainerInput">Paste Pseudocode</label>
+          <span id="explainerCharCounter">0 chars</span>
+        </div>
+        <textarea id="explainerInput" placeholder="Paste ternary pseudocode, e.g.: ($a > 10) ? (100) : (0)"></textarea>
+
+        <div class="explainer-chips">
+          <span>Examples:</span>
+          <button class="explainer-chip" data-pseudo="($a > 10) ? (100) : (0)">($a > 10) ? (100) : (0)</button>
+          <button class="explainer-chip" data-pseudo="($a > 5) ? (($b < 3) ? ($a * $b) : (0)) : ($b)">nested IF</button>
+          <button class="explainer-chip" data-pseudo="(($a > 1 ? 1 : 0) + ($b < 5 ? 1 : 0) == 2) ? ($c) : (0)">AND pattern</button>
+        </div>
+
+        <div class="button-row">
+          <button id="explainBtn" class="try-btn">Explain</button>
+          <button id="explainerClearBtn" class="btn-secondary">Clear</button>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="explainer-tabs">
+        <button class="explainer-tab active" data-tab="tab-summary">Plain English</button>
+        <button class="explainer-tab" data-tab="tab-tables">Tables</button>
+        <button class="explainer-tab" data-tab="tab-excel">Excel Equivalent</button>
+        <button class="explainer-tab" data-tab="tab-tryit">Try It</button>
+      </div>
+
+      <!-- Tab: Plain English -->
+      <div class="explainer-tab-content active" id="tab-summary">
+        <div id="structureBox"></div>
+        <div id="patternBadges" class="pattern-list"></div>
+        <div class="explain-summary" id="explainerSummary">Enter pseudocode above and click <strong>Explain</strong>.</div>
+      </div>
+
+      <!-- Tab: Tables -->
+      <div class="explainer-tab-content" id="tab-tables">
+        <div id="tablesContainer">
+          <p class="no-tables-msg">No lookup tables detected. Explain some pseudocode first.</p>
+        </div>
+      </div>
+
+      <!-- Tab: Excel Equivalent -->
+      <div class="explainer-tab-content" id="tab-excel">
+        <div class="excel-formula-box" id="explainerExcel">
+          <span class="excel-formula-label">Reconstructed Excel Formula</span>
+          <span id="excelFormulaText">—</span>
+        </div>
+      </div>
+
+      <!-- Tab: Try It -->
+      <div class="explainer-tab-content" id="tab-tryit">
+        <p class="hint">Enter values for each variable, then click <strong>Run</strong> to trace which path the logic takes.</p>
+        <div class="var-grid" id="varGrid"></div>
+        <button class="try-btn" id="runTraceBtn" disabled>Run</button>
+        <div class="trace-output" id="traceOutput">Waiting for variable values…</div>
       </div>
     </div>
 
