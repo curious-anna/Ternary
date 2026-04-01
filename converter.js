@@ -166,9 +166,42 @@ function stripDisplayParens(s) {
   return s;
 }
 
+/**
+ * Remove unmatched parentheses from a string.
+ * - Forward pass: mark unmatched ')' for removal
+ * - Backward pass: mark unmatched '(' for removal
+ */
+function balanceParens(str) {
+  const chars = str.split('');
+  const toRemove = new Set();
+  // Forward pass: find unmatched close parens
+  let depth = 0;
+  for (let i = 0; i < chars.length; i++) {
+    if (chars[i] === '(') depth++;
+    else if (chars[i] === ')') {
+      if (depth > 0) depth--;
+      else toRemove.add(i);
+    }
+  }
+  // Backward pass: find unmatched open parens
+  depth = 0;
+  for (let i = chars.length - 1; i >= 0; i--) {
+    if (chars[i] === ')') depth++;
+    else if (chars[i] === '(') {
+      if (depth > 0) depth--;
+      else toRemove.add(i);
+    }
+  }
+  if (toRemove.size === 0) return str;
+  return chars.filter((_, i) => !toRemove.has(i)).join('');
+}
+
 function toPseudocode(rawInput) {
   let e = rawInput.trim();
   if (e.startsWith('=')) e = e.slice(1).trim();
+
+  // ── Auto-balance parentheses by removing unmatched ones ──
+  e = balanceParens(e);
 
   const reserved = new Set(['IF', 'MIN', 'MAX', 'AND', 'OR', 'ROUND', 'ROUNDUP', 'ROUNDDOWN']);
 
@@ -425,32 +458,147 @@ function toPseudocode(rawInput) {
 // ── Pseudocode Explainer ──────────────────────────────────────────────────────
 
 /**
+ * Extract boolean flag groups from a sum expression like:
+ *   (A ? 1 : 0) + (B ? 1 : 0)
+ * Returns array of inner condition strings, or null if not a flag-sum pattern.
+ * Handles nested parens (unlike the old regex approach).
+ */
+function extractFlagGroups(sumExpr) {
+  let s = sumExpr.trim();
+  // Strip outermost wrapping parens if the entire expression is enclosed
+  while (s.startsWith('(')) {
+    let depth = 1, j = 1;
+    while (j < s.length && depth > 0) {
+      if (s[j] === '(') depth++;
+      else if (s[j] === ')') depth--;
+      j++;
+    }
+    if (j === s.length) {
+      s = s.slice(1, -1).trim();
+    } else {
+      break;
+    }
+  }
+  const groups = [];
+  let i = 0;
+  while (i < s.length) {
+    // Skip whitespace and +
+    if (/[\s+]/.test(s[i])) { i++; continue; }
+    if (s[i] === '(') {
+      // Find matching close paren
+      let depth = 1, j = i + 1;
+      while (j < s.length && depth > 0) {
+        if (s[j] === '(') depth++;
+        else if (s[j] === ')') depth--;
+        j++;
+      }
+      const group = s.slice(i + 1, j - 1).trim(); // content inside outer parens
+      // Check if this group ends with ? 1 : 0
+      const flag = extractFlagFromContent(group);
+      if (flag === null) return null;
+      groups.push(flag);
+      i = j;
+    } else {
+      // Not a paren group — check if the remainder itself is a single bare flag
+      // e.g. after stripping outer parens: "COND ? 1 : 0"
+      const remainder = s.slice(i).trim();
+      if (groups.length === 0) {
+        const flag = extractFlagFromContent(remainder);
+        if (flag !== null) return [flag];
+      }
+      return null;
+    }
+  }
+  return groups.length >= 1 ? groups : null;
+}
+
+/**
+ * Check if content matches a flag pattern: COND ? 1 : 0
+ * Returns the inner condition string or null.
+ */
+function extractFlagFromContent(content) {
+  // Find the LAST top-level ? ... : ...
+  let qPos = -1, cPos = -1, gDepth = 0;
+  for (let k = content.length - 1; k >= 0; k--) {
+    if (content[k] === ')') gDepth++;
+    else if (content[k] === '(') gDepth--;
+    else if (gDepth === 0 && content[k] === ':' && cPos < 0) cPos = k;
+    else if (gDepth === 0 && content[k] === '?' && cPos >= 0 && qPos < 0) qPos = k;
+  }
+  if (qPos < 0 || cPos < 0) return null;
+  const trueVal = content.slice(qPos + 1, cPos).trim();
+  const falseVal = content.slice(cPos + 1).trim();
+  if (trueVal !== '1' || falseVal !== '0') return null;
+  return content.slice(0, qPos).trim();
+}
+
+/**
+ * Try to interpret a condition as an AND/OR boolean flag pattern.
+ * Returns { type: 'and'|'or', conditions: string[] } or null.
+ */
+function parseAndOrPattern(cond) {
+  const s = cond.trim();
+  // AND pattern: flagSum == N  (including single flag == 1)
+  {
+    const cmp = findOutermostComparison(s);
+    if (cmp && cmp.op === '==' && /^\d+$/.test(cmp.right.trim())) {
+      const flags = extractFlagGroups(cmp.left);
+      if (flags && flags.length >= 1) {
+        return { type: 'and', conditions: flags, count: parseInt(cmp.right.trim()) };
+      }
+    }
+  }
+  // OR pattern: flagSum > 0  or  flagSum >= 1
+  {
+    const cmp = findOutermostComparison(s);
+    if (cmp && ((cmp.op === '>' && cmp.right.trim() === '0') || (cmp.op === '>=' && cmp.right.trim() === '1'))) {
+      const flags = extractFlagGroups(cmp.left);
+      if (flags && flags.length >= 1) {
+        return { type: 'or', conditions: flags };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Describe a single flag condition recursively.
+ * If it's itself an AND/OR pattern, recursively expand.
+ * Returns a plain English string.
+ */
+function describeFlagCondition(cond, formatter) {
+  // Check if this flag is itself an AND/OR wrapped in a ternary: ((OR_PATTERN) >= 1 ? 1 : 0)-style
+  // But here we receive the raw inner condition, so check directly
+  const nested = parseAndOrPattern(cond);
+  if (nested) {
+    const subs = nested.conditions.map(c => describeFlagCondition(c, formatter));
+    if (nested.type === 'and') {
+      const prefix = subs.length === 2 ? 'both ' : subs.length > 2 ? 'all of: ' : '';
+      return `(${prefix}${subs.join(' AND ')})`;
+    } else {
+      return `(${subs.join(' OR ')})`;
+    }
+  }
+  return formatter(cond);
+}
+
+/**
  * Translate a comparison condition into plain English.
  * Handles AND/OR sum patterns and standard comparisons.
  */
 function conditionToEnglish(cond) {
-  // AND pattern: (X ? 1 : 0) + (Y ? 1 : 0) == N
-  const andMatch = cond.match(/^((?:\([^)]*\? 1 : 0\)\s*\+\s*)*\([^)]*\? 1 : 0\))\s*==\s*(\d+)$/);
-  if (andMatch) {
-    const parts = andMatch[1].match(/\(([^?]+)\? 1 : 0\)/g);
-    if (parts) {
-      const conditions = parts.map(p => {
-        const inner = p.match(/\((.+?)\s*\? 1 : 0\)/);
-        return inner ? conditionToEnglish(inner[1].trim()) : p;
-      });
-      return conditions.join(' AND ');
+  // AND/OR pattern using depth-aware parsing
+  const andOr = parseAndOrPattern(cond);
+  if (andOr) {
+    // Single flag: (COND ? 1 : 0) == 1  →  just the condition
+    if (andOr.conditions.length === 1 && (andOr.count === 1 || andOr.type === 'or')) {
+      return describeFlagCondition(andOr.conditions[0], conditionToEnglish);
     }
-  }
-  // OR pattern: (...) > 0
-  const orMatch = cond.match(/^((?:\([^)]*\? 1 : 0\)\s*\+\s*)*\([^)]*\? 1 : 0\))\s*>\s*0$/);
-  if (orMatch) {
-    const parts = orMatch[1].match(/\(([^?]+)\? 1 : 0\)/g);
-    if (parts) {
-      const conditions = parts.map(p => {
-        const inner = p.match(/\((.+?)\s*\? 1 : 0\)/);
-        return inner ? conditionToEnglish(inner[1].trim()) : p;
-      });
-      return conditions.join(' OR ');
+    const subs = andOr.conditions.map(c => describeFlagCondition(c, conditionToEnglish));
+    if (andOr.type === 'and') {
+      return subs.join(' AND ');
+    } else {
+      return subs.join(' OR ');
     }
   }
 
@@ -625,6 +773,18 @@ function simplifyEmbeddedTernaries(s) {
         const simplified = simplifyEmbeddedTernaries(group.slice(1, -1));
         // After simplification, try extracting as chain or simple conditional
         if (simplified.includes('?') && simplified.includes(':')) {
+          // Boolean flag: (COND ? 1 : 0) → leave as-is for AND/OR detection
+          const flagParsed = parseTernaryStructure(simplified);
+          if (flagParsed.type === 'ternary') {
+            const fTV = flagParsed.trueVal.type === 'value' ? stripDisplayParens(flagParsed.trueVal.content) : null;
+            const fFV = flagParsed.falseVal.type === 'value' ? stripDisplayParens(flagParsed.falseVal.content) : null;
+            if (fTV === '1' && fFV === '0') {
+              // Preserve the flag pattern so AND/OR detection can find it
+              result += '(' + simplified + ')';
+              i = j;
+              continue;
+            }
+          }
           const chain2 = extractLookupChain('(' + simplified + ')');
           if (chain2) {
             const label = registerChainDefinition(chain2);
@@ -1030,34 +1190,30 @@ function describeEmbeddedTernary(expr) {
   const trueVal = parsed.trueVal.type === 'value' ? stripDisplayParens(parsed.trueVal.content) : null;
   const falseVal = parsed.falseVal.type === 'value' ? stripDisplayParens(parsed.falseVal.content) : null;
 
-  // AND pattern: ($a ? 1 : 0) + ($b ? 1 : 0) == N ? result : default
-  const andMatch = cond.match(/^((?:\([^)]*\? 1 : 0\)\s*\+\s*)*\([^)]*\? 1 : 0\))\s*==\s*(\d+)$/);
-  if (andMatch && trueVal !== null && falseVal !== null) {
-    const parts = andMatch[1].match(/\(([^?]+)\? 1 : 0\)/g);
-    if (parts) {
-      const conditions = parts.map(p => {
-        const inner = p.match(/\((.+?)\s*\? 1 : 0\)/);
-        return inner ? conditionToEnglishSimple(inner[1].trim()) : p;
-      });
-      const n = parseInt(andMatch[2]);
-      const prefix = conditions.length === n && conditions.length === 2 ? 'both '
-        : conditions.length === n && conditions.length > 2 ? 'all of: ' : '';
-      if (falseVal === '0') return `${formatExprNumbers(trueVal)} when ${prefix}${conditions.join(' AND ')}`;
-      return `${formatExprNumbers(trueVal)} when ${prefix}${conditions.join(' AND ')}, otherwise ${formatExprNumbers(falseVal)}`;
-    }
+  // Boolean flag: (COND ? 1 : 0) — just represents "is COND true?"
+  if (trueVal === '1' && falseVal === '0') {
+    return `1 if ${conditionToEnglishSimple(cond)}`;
   }
 
-  // OR pattern: ($a ? 1 : 0) + ($b ? 1 : 0) > 0
-  const orMatch = cond.match(/^((?:\([^)]*\? 1 : 0\)\s*\+\s*)*\([^)]*\? 1 : 0\))\s*>\s*0$/);
-  if (orMatch && trueVal !== null && falseVal !== null) {
-    const parts = orMatch[1].match(/\(([^?]+)\? 1 : 0\)/g);
-    if (parts) {
-      const conditions = parts.map(p => {
-        const inner = p.match(/\((.+?)\s*\? 1 : 0\)/);
-        return inner ? conditionToEnglishSimple(inner[1].trim()) : p;
-      });
-      if (falseVal === '0') return `${formatExprNumbers(trueVal)} when ${conditions.join(' OR ')}`;
-      return `${formatExprNumbers(trueVal)} when ${conditions.join(' OR ')}, otherwise ${formatExprNumbers(falseVal)}`;
+  // AND/OR pattern using depth-aware parsing
+  const andOr = parseAndOrPattern(cond);
+  if (andOr && trueVal !== null && falseVal !== null) {
+    // Single flag: (COND ? 1 : 0) == 1 → just "VALUE if COND" or "COND"
+    if (andOr.conditions.length === 1 && (andOr.count === 1 || andOr.type === 'or')) {
+      const condDesc = describeFlagCondition(andOr.conditions[0], conditionToEnglishSimple);
+      if (falseVal === '0') return `${formatExprNumbers(trueVal)} if ${condDesc}`;
+      return `${formatExprNumbers(trueVal)} if ${condDesc}, otherwise ${formatExprNumbers(falseVal)}`;
+    }
+    const subs = andOr.conditions.map(c => describeFlagCondition(c, conditionToEnglishSimple));
+    if (andOr.type === 'and') {
+      const n = andOr.count || subs.length;
+      const prefix = subs.length === n && subs.length === 2 ? 'both '
+        : subs.length === n && subs.length > 2 ? 'all of: ' : '';
+      if (falseVal === '0') return `${formatExprNumbers(trueVal)} when ${prefix}${subs.join(' AND ')}`;
+      return `${formatExprNumbers(trueVal)} when ${prefix}${subs.join(' AND ')}, otherwise ${formatExprNumbers(falseVal)}`;
+    } else {
+      if (falseVal === '0') return `${formatExprNumbers(trueVal)} when ${subs.join(' OR ')}`;
+      return `${formatExprNumbers(trueVal)} when ${subs.join(' OR ')}, otherwise ${formatExprNumbers(falseVal)}`;
     }
   }
 
@@ -1215,6 +1371,20 @@ function describeArithmeticExpr(expr, opts) {
     }
   }
 
+  // When one term has layered patterns (clamped/rounded) and another has
+  // conditional language (if/else/when), the conditional reads ambiguously
+  // when joined. Turn the conditional into a named definition.
+  const hasLayered = described.some(d => /\b(clamped|rounded)\b/i.test(d.text));
+  if (hasLayered) {
+    for (let i = 0; i < described.length; i++) {
+      const t = described[i].text;
+      if (!/\b(clamped|rounded)\b/i.test(t) && /\b(if|when|unless)\b/.test(t) && !t.startsWith('[')) {
+        const label = addDefinition('Additional Award', t);
+        described[i].text = `[${label}]`;
+      }
+    }
+  }
+
   // Build the final string: use actual math operators
   const parts = [];
   for (let i = 0; i < described.length; i++) {
@@ -1225,8 +1395,9 @@ function describeArithmeticExpr(expr, opts) {
       parts.push(`${sign} ${text}`);
     }
   }
-  // Multi-line: one term per line when there are 3+ terms
-  if (opts.multiLine && parts.length >= 3) {
+  // Multi-line: one term per line when there are 3+ terms,
+  // or when one term has layered patterns (to avoid ambiguous joining)
+  if (opts.multiLine && (parts.length >= 3 || (parts.length >= 2 && hasLayered))) {
     return parts.join('\n');
   }
   return parts.join(' ');
@@ -1446,7 +1617,11 @@ function evaluateWithTrace(pseudocode, values) {
  * Main explainer: takes pseudocode, returns structured explanation data.
  */
 function explainPseudocode(pseudocode) {
-  const code = pseudocode.trim();
+  let code = pseudocode.trim();
+
+  // ── Auto-balance parentheses by removing unmatched ones ──
+  code = balanceParens(code);
+
   const parsed = parseTernaryStructure(code);
 
   // Reset definitions registry before building descriptions
@@ -1560,8 +1735,22 @@ function explainPseudocode(pseudocode) {
       summaryLines.push(`This expression simply returns: ${englishVal}`);
     }
   } else {
+    // ── Detect tiered-award pattern (cascading if-else → tier list) ──
+    // Every YES → a result value, every NO → next step (last NO → result)
+    const isTiered = displaySteps.length >= 3 && displaySteps.every((step, idx) => {
+      if (step.trueOutcome.type !== 'result') return false;
+      if (idx < displaySteps.length - 1) {
+        return step.falseOutcome.type === 'decision' && step.falseOutcome.stepNum === step.stepNum + 1;
+      }
+      return step.falseOutcome.type === 'result';
+    });
+
     if (displaySteps.length > 0) {
-      summaryLines.push(`This formula has ${displaySteps.length} decision point${displaySteps.length > 1 ? 's' : ''}.`);
+      if (isTiered) {
+        summaryLines.push(`This formula has ${displaySteps.length} award tiers.`);
+      } else {
+        summaryLines.push(`This formula has ${displaySteps.length} decision point${displaySteps.length > 1 ? 's' : ''}.`);
+      }
     }
 
     // Add pattern annotations
@@ -1578,18 +1767,35 @@ function explainPseudocode(pseudocode) {
       summaryLines.push(`Contains ${tables.length} lookup table${tables.length > 1 ? 's' : ''} (see Tables tab for details).`);
     }
 
-    for (const step of displaySteps) {
+    if (isTiered) {
       summaryLines.push('');
-      summaryLines.push(`Step ${step.stepNum}: Check whether ${step.conditionEnglish}`);
-      if (step.trueOutcome.type === 'result') {
-        summaryLines.push(`  \u2713 If YES \u2192 return ${step.trueOutcome.english}`);
-      } else {
-        summaryLines.push(`  \u2713 If YES \u2192 go to Step ${step.trueOutcome.stepNum}`);
+      summaryLines.push('Returns the first matching award:');
+      // Find the max value width for alignment
+      const tiers = displaySteps.map(step => ({
+        value: step.trueOutcome.english,
+        condition: step.conditionEnglish
+      }));
+      const lastStep = displaySteps[displaySteps.length - 1];
+      const defaultValue = lastStep.falseOutcome.english;
+      const maxLen = Math.max(...tiers.map(t => t.value.length), defaultValue.length);
+      for (const tier of tiers) {
+        summaryLines.push(`  ${tier.value.padStart(maxLen)} — if ${tier.condition}`);
       }
-      if (step.falseOutcome.type === 'result') {
-        summaryLines.push(`  \u2717 If NO  \u2192 return ${step.falseOutcome.english}`);
-      } else {
-        summaryLines.push(`  \u2717 If NO  \u2192 go to Step ${step.falseOutcome.stepNum}`);
+      summaryLines.push(`  ${defaultValue.padStart(maxLen)} — otherwise`);
+    } else {
+      for (const step of displaySteps) {
+        summaryLines.push('');
+        summaryLines.push(`Step ${step.stepNum}: Check whether ${step.conditionEnglish}`);
+        if (step.trueOutcome.type === 'result') {
+          summaryLines.push(`  \u2713 If YES \u2192 return ${step.trueOutcome.english}`);
+        } else {
+          summaryLines.push(`  \u2713 If YES \u2192 go to Step ${step.trueOutcome.stepNum}`);
+        }
+        if (step.falseOutcome.type === 'result') {
+          summaryLines.push(`  \u2717 If NO  \u2192 return ${step.falseOutcome.english}`);
+        } else {
+          summaryLines.push(`  \u2717 If NO  \u2192 go to Step ${step.falseOutcome.stepNum}`);
+        }
       }
     }
   }
