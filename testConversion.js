@@ -39,8 +39,8 @@ function assert(name, input, mustContain, mustNotContain) {
 // Basic function conversions.
 assert('MAX basic', 'MAX(5,8)', ['(5 > 8) ? (5) : (8)'], []);
 assert('MIN basic', 'MIN(5,8)', ['(5 < 8) ? (5) : (8)'], []);
-assert('MAX expr', 'MAX(ACT + 700, 300)', ['$act + 700 > 300'], []);
-assert('var prefix', '$ACT + 10', ['$act + 10'], []);
+assert('MAX expr', 'MAX(ACT + 700, 300)', ['$ACT + 700 > 300'], []);
+assert('var prefix', '$ACT + 10', ['$ACT + 10'], []);
 
 // ROUND family: second arg is step/increment.
 assert('ROUND default step', 'ROUND(3.2)', ['3.2 % 1'], []);

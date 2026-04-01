@@ -71,8 +71,9 @@ function normalizeComparisonOps(str) {
   s = s.replace(/\s*<=\s*/g, ' <= ');
   s = s.replace(/\s*>=\s*/g, ' >= ');
   s = s.replace(/\s*<>\s*/g, ' != ');
-  s = s.replace(/\s*<\s*/g, ' < ');
-  s = s.replace(/\s*>\s*/g, ' > ');
+  // Use negative lookahead so we never re-match the '<' or '>' inside '<=' / '>='
+  s = s.replace(/\s*<(?!=)\s*/g, ' < ');
+  s = s.replace(/\s*>(?!=)\s*/g, ' > ');
   s = s.replace(/\s*==\s*/g, ' == ');
   s = s.replace(/([^><=!])=([^=])/g, '$1 == $2');
   return s.replace(/\s+/g, ' ').trim();
@@ -105,6 +106,10 @@ function isWrappedWithParentheses(text) {
 
 function parseTernaryStructure(code) {
   code = code.trim();
+  // Strip fully wrapping outer parens before scanning for depth-0 ternary operators
+  while (isWrappedWithParentheses(code)) {
+    code = code.slice(1, -1).trim();
+  }
   let qPos = -1;
   let colonPos = -1;
   let depth = 0;
@@ -167,8 +172,8 @@ function toPseudocode(rawInput) {
 
   const reserved = new Set(['IF', 'MIN', 'MAX', 'AND', 'OR', 'ROUND', 'ROUNDUP', 'ROUNDDOWN']);
 
-  // Normalize user-provided variable names with `$` and preserve them (lowercase keys).
-  e = e.replace(/\$([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, name) => `$${name.toLowerCase()}`);
+  // Normalize user-provided variable names with `$` prefix.
+  e = e.replace(/\$([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, name) => `$${name}`);
 
   // Add `$` prefix to identifier tokens that are not reserved functions and not already prefixed.
   e = e.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\b/g, (match, _p1, offset, string) => {
@@ -177,7 +182,7 @@ function toPseudocode(rawInput) {
     }
     const upper = match.toUpperCase();
     if (reserved.has(upper)) return upper;
-    return `$${match.toLowerCase()}`;
+    return `$${match}`;
   });
 
   function convert(expr) {
@@ -449,43 +454,808 @@ function conditionToEnglish(cond) {
     }
   }
 
-  // Complex conditions with embedded ternaries — summarize instead of expanding
+  // Complex conditions with embedded ternaries — decompose
   if (cond.includes('?') && cond.length > 80) {
-    const floorMatch = cond.match(/^(-?[\d.]+)\s*>=\s/);
-    if (floorMatch) return `the calculated result is at most ${floorMatch[1]} (minimum floor)`;
-    const ceilMatch = cond.match(/^(-?[\d.]+)\s*<=\s/);
-    if (ceilMatch) return `the calculated result is at least ${ceilMatch[1]} (maximum cap)`;
-    // Large comparison — summarize
-    const cmpParts = cond.match(/^(.{1,40})\s*(>|>=|<|<=)\s*(.{1,40})/);
-    if (cmpParts) return `one calculated value ${cmpParts[2] === '>' || cmpParts[2] === '>=' ? 'exceeds' : 'is less than'} another`;
-    return 'a complex calculated condition';
+    // Find the outermost comparison operator at depth 0
+    const outerCmp = findOutermostComparison(cond);
+    if (outerCmp) {
+      let leftDesc = describeArithmeticExpr(outerCmp.left);
+      let rightDesc = describeArithmeticExpr(outerCmp.right);
+      // Choose descriptive names based on content
+      const leftName = /\bif\b/.test(leftDesc) || /\belse\b/.test(leftDesc) ? 'Option A' : 'Amount A';
+      const rightName = /\bif\b/.test(rightDesc) || /\belse\b/.test(rightDesc) ? 'Option B' : 'Amount B';
+      // Auto-shorten both sides if they're still long
+      leftDesc = autoShortenIfLong(leftDesc, leftName, 55);
+      rightDesc = autoShortenIfLong(rightDesc, rightName, 55);
+      return `${leftDesc} ${outerCmp.op} ${rightDesc}`;
+    }
+    let desc = describeArithmeticExpr(cond);
+    return autoShortenIfLong(desc, 'Condition', 80);
   }
 
+  // Simple condition — keep math, format nicely
   let s = cond;
-  s = s.replace(/\$([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, name) => name);
-  // Simplify arithmetic threshold expressions like (14000 + 4000) → 18000
+  // Simplify arithmetic threshold expressions like (14000 + 4000) → 18,000
   s = s.replace(/\((\d+(?:\.\d+)?\s*[+\-*/]\s*\d+(?:\.\d+)?)\)/g, (m, expr) => {
     try {
       const v = safeEval(expr);
-      if (typeof v === 'number' && !isNaN(v)) return String(v);
+      if (typeof v === 'number' && !isNaN(v)) return formatNum(v);
     } catch(e) {}
     return m;
   });
-  s = s.replace(/ >= /g, ' is at least ');
-  s = s.replace(/ <= /g, ' is at most ');
-  s = s.replace(/ > /g, ' is greater than ');
-  s = s.replace(/ < /g, ' is less than ');
-  s = s.replace(/ == /g, ' equals ');
-  s = s.replace(/ != /g, ' does not equal ');
+  // Format standalone numbers with commas
+  s = s.replace(/(?<!\$)\b(\d{1,3}(?:,\d{3})*|\d+)(\.\d+)?\b/g, (m) => {
+    const n = parseFloat(m.replace(/,/g, ''));
+    if (!isNaN(n)) return formatNum(n);
+    return m;
+  });
   return s;
+}
+
+/**
+ * Format a number with commas (e.g. 13900 → "13,900").
+ * Preserves decimals.
+ */
+function formatNum(n) {
+  if (typeof n === 'string') n = parseFloat(n.replace(/,/g, ''));
+  if (isNaN(n)) return String(n);
+  const parts = n.toString().split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return parts.join('.');
 }
 
 function valueToEnglish(val) {
   val = val.trim();
-  if (/^\$[a-zA-Z_][a-zA-Z0-9_]*$/.test(val)) return `the value of ${val.slice(1)}`;
-  if (/^-?[0-9]+(\.[0-9]+)?$/.test(val)) return val;
-  // Complex expression — simplify variable names
-  return val.replace(/\$/g, '');
+  if (/^\$[a-zA-Z_][a-zA-Z0-9_]*$/.test(val)) return val;
+  if (/^-?[0-9]+(\.[0-9]+)?$/.test(val)) return formatNum(parseFloat(val));
+
+  // Simplify pure arithmetic (no variables): "3000 + 2000" → "5,000"
+  if (/^\d+(\.\d+)?\s*[+\-*]\s*\d+(\.\d+)?$/.test(val)) {
+    try {
+      const v = safeEval(val);
+      if (typeof v === 'number' && !isNaN(v)) return formatNum(v);
+    } catch(e) {}
+  }
+
+  // Try to describe complex arithmetic expressions with embedded ternaries
+  if (val.includes('?') && val.includes(':')) {
+    let desc = describeArithmeticExpr(val);
+    if (desc) {
+      // Auto-shorten long results into definitions for clarity
+      desc = autoShortenIfLong(desc, 'Result', 60);
+      return desc;
+    }
+  }
+  // Format numbers with commas, keep $variables
+  let formatted = formatExprNumbers(val);
+  // Also auto-shorten plain long expressions
+  if (formatted.length > 60 && !formatted.startsWith('[')) {
+    formatted = autoShortenIfLong(formatted, 'Amount', 60);
+  }
+  return formatted;
+}
+
+// ── Definitions Registry ─────────────────────────────────────────────────────
+// Accumulates labeled definitions (lookup tables, proration rates, etc.) so
+// inline descriptions stay short and the details appear once at the bottom.
+let _definitions = [];  // { label, detail }
+let _definitionIndex = 0;
+
+function resetDefinitions() { _definitions = []; _definitionIndex = 0; }
+
+/**
+ * Register a definition and return its short label.
+ * If an identical detail already exists, reuse its label.
+ */
+function addDefinition(baseName, detail) {
+  // Exact match — reuse
+  const existing = _definitions.find(d => d.detail === detail);
+  if (existing) return existing.label;
+  // Trim whitespace for matching
+  const trimmed = detail.trim();
+  const existingTrimmed = _definitions.find(d => d.detail.trim() === trimmed);
+  if (existingTrimmed) return existingTrimmed.label;
+  _definitionIndex++;
+  // Avoid label collisions — if baseName is taken, append a number
+  let label = baseName;
+  const taken = _definitions.filter(d => d.label === label || d.label.match(new RegExp('^' + baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' \\d+$')));
+  if (taken.length > 0) {
+    label = `${baseName} ${taken.length + 1}`;
+  }
+  _definitions.push({ label, detail });
+  return label;
+}
+
+function getDefinitions() { return _definitions; }
+
+// ── Enhanced Explanation Helpers ──────────────────────────────────────────────
+
+/**
+ * Simple condition-to-English for embedded descriptions.
+ * Handles basic comparisons without recursive ternary expansion.
+ */
+function conditionToEnglishSimple(cond) {
+  let s = cond.trim();
+  // Simplify parenthesized ternary groups first (before stripping $)
+  s = simplifyEmbeddedTernaries(s);
+  // Format numbers with commas, keep $variables and operator symbols
+  s = formatExprNumbers(s);
+  // Convert * to × for readability
+  s = s.replace(/\s*\*\s*/g, ' × ');
+  // If result is very long, auto-shorten the LHS of the comparison
+  if (s.length > 80) {
+    const comp = findComparisonInSimplified(s);
+    if (comp && comp.left.length > 40) {
+      const lhs = stripDisplayParens(comp.left.trim());
+      const label = addDefinition('Eligibility', lhs);
+      s = `[${label}] ${comp.op} ${comp.right}`;
+    }
+  }
+  return s;
+}
+
+/**
+ * Replace parenthesized ternary sub-expressions with concise labels.
+ * Safe from recursion: only uses extractLookupChain and parseTernaryStructure
+ * (never calls conditionToEnglishSimple or describeEmbeddedTernary).
+ */
+function simplifyEmbeddedTernaries(s) {
+  let result = '';
+  let i = 0;
+  while (i < s.length) {
+    if (s[i] === '(') {
+      let depth = 1;
+      let j = i + 1;
+      while (j < s.length && depth > 0) {
+        if (s[j] === '(') depth++;
+        else if (s[j] === ')') depth--;
+        j++;
+      }
+      const group = s.slice(i, j);
+      if (group.includes('?') && group.includes(':')) {
+        // Try as a lookup chain first
+        const chain = extractLookupChain(group);
+        if (chain) {
+          const label = registerChainDefinition(chain);
+          result += `[${label}]`;
+          i = j;
+          continue;
+        }
+        // Recursively simplify inner content first
+        const simplified = simplifyEmbeddedTernaries(group.slice(1, -1));
+        // After simplification, try extracting as chain or simple conditional
+        if (simplified.includes('?') && simplified.includes(':')) {
+          const chain2 = extractLookupChain('(' + simplified + ')');
+          if (chain2) {
+            const label = registerChainDefinition(chain2);
+            result += `[${label}]`;
+            i = j;
+            continue;
+          }
+          const parsed = parseTernaryStructure(simplified);
+          if (parsed.type === 'ternary') {
+            const tV = parsed.trueVal.type === 'value' ? stripDisplayParens(parsed.trueVal.content) : null;
+            const fV = parsed.falseVal.type === 'value' ? stripDisplayParens(parsed.falseVal.content) : null;
+            if (tV && fV && !tV.includes('?') && !fV.includes('?')) {
+              const rawCond = formatExprNumbers(stripDisplayParens(parsed.conditionRaw || ''));
+              const tVfmt = formatExprNumbers(tV);
+              const fVfmt = formatExprNumbers(fV);
+              // If values contain bracket refs, use a definition to avoid [[...]]
+              if (tVfmt.includes('[') || fVfmt.includes('[')) {
+                const desc = `${tVfmt} if ${rawCond}, else ${fVfmt}`;
+                const label = addDefinition('Amount', desc);
+                result += `[${label}]`;
+              } else {
+                result += `[${tVfmt} if ${rawCond}, else ${fVfmt}]`;
+              }
+              i = j;
+              continue;
+            }
+          }
+        }
+        result += '(' + simplified + ')';
+        i = j;
+      } else {
+        // No ternary — recursively simplify inside the group
+        result += '(' + simplifyEmbeddedTernaries(group.slice(1, -1)) + ')';
+        i = j;
+      }
+    } else {
+      result += s[i];
+      i++;
+    }
+  }
+  return result;
+}
+
+/**
+ * Find the outermost (rightmost, depth-0) comparison operator in an expression.
+ * Returns { left, op, right } or null.
+ */
+function findOutermostComparison(expr) {
+  let depth = 0;
+  let lastOp = null;
+  let lastPos = -1;
+  let lastLen = 0;
+  for (let i = 0; i < expr.length; i++) {
+    if (expr[i] === '(') { depth++; continue; }
+    if (expr[i] === ')') { depth--; continue; }
+    if (depth !== 0) continue;
+    if (i + 1 < expr.length) {
+      const two = expr.slice(i, i + 2);
+      if (['>=', '<=', '==', '!='].includes(two)) {
+        lastOp = two; lastPos = i; lastLen = 2;
+        i++; continue;
+      }
+    }
+    if (expr[i] === '>' && (i + 1 >= expr.length || expr[i + 1] !== '=')) {
+      lastOp = '>'; lastPos = i; lastLen = 1;
+    } else if (expr[i] === '<' && (i + 1 >= expr.length || (expr[i + 1] !== '=' && expr[i + 1] !== '>'))) {
+      lastOp = '<'; lastPos = i; lastLen = 1;
+    }
+  }
+  if (!lastOp || lastPos <= 0) return null;
+  return {
+    left: expr.slice(0, lastPos).trim(),
+    op: lastOp,
+    right: expr.slice(lastPos + lastLen).trim(),
+  };
+}
+
+/**
+ * Like findOutermostComparison but also tracks [] depth for simplified strings
+ * that contain bracket labels like [numberCredits Rate].
+ */
+function findComparisonInSimplified(s) {
+  let depth = 0;
+  let lastOp = null, lastPos = -1, lastLen = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '(' || s[i] === '[') { depth++; continue; }
+    if (s[i] === ')' || s[i] === ']') { depth--; continue; }
+    if (depth !== 0) continue;
+    if (i + 1 < s.length) {
+      const two = s.slice(i, i + 2);
+      if (['>=', '<=', '==', '!='].includes(two)) {
+        lastOp = two; lastPos = i; lastLen = 2; i++; continue;
+      }
+    }
+    if (s[i] === '>' && (i + 1 >= s.length || s[i + 1] !== '=')) {
+      lastOp = '>'; lastPos = i; lastLen = 1;
+    } else if (s[i] === '<' && (i + 1 >= s.length || (s[i + 1] !== '=' && s[i + 1] !== '>'))) {
+      lastOp = '<'; lastPos = i; lastLen = 1;
+    }
+  }
+  if (!lastOp || lastPos <= 0) return null;
+  return { left: s.slice(0, lastPos).trim(), op: lastOp, right: s.slice(lastPos + lastLen).trim() };
+}
+
+/**
+ * Extract a lookup/tier chain from a ternary expression.
+ * Returns { variable, tiers: [{threshold, op, value}], defaultValue } or null.
+ */
+function extractLookupChain(expr) {
+  const parsed = parseTernaryStructure(expr);
+  if (parsed.type !== 'ternary') return null;
+  const tiers = [];
+  let current = parsed;
+  let chainVar = null;
+  while (current.type === 'ternary') {
+    const cond = stripDisplayParens(current.conditionRaw || '');
+    const m = cond.match(/^(\$[a-zA-Z_][a-zA-Z0-9_]*)\s*(>=|>|<=|<|==)\s*(.+)$/);
+    if (!m) break;
+    const [, varName, op, threshold] = m;
+    if (chainVar === null) chainVar = varName;
+    else if (varName !== chainVar) break;
+    const trueVal = current.trueVal.type === 'value'
+      ? stripDisplayParens(current.trueVal.content) : null;
+    if (trueVal === null) break;
+    tiers.push({ threshold: threshold.trim(), op, value: trueVal });
+    current = current.falseVal;
+  }
+  if (tiers.length < 2) return null;
+  const defaultVal = current.type === 'value'
+    ? stripDisplayParens(current.content) : null;
+  if (defaultVal === null) return null;
+  return { variable: chainVar, tiers, defaultValue: defaultVal };
+}
+
+/**
+ * Describe a lookup chain in English.
+ * If all values are between 0 and 1, formats them as percentages.
+ */
+function describeLookupChainEnglish(chain) {
+  const varName = chain.variable; // keep $prefix
+  const allValues = [...chain.tiers.map(t => parseFloat(t.value)), parseFloat(chain.defaultValue)];
+  const allDecimal = allValues.every(v => !isNaN(v) && v > 0 && v <= 1);
+  const rows = chain.tiers.map(t => {
+    const val = allDecimal ? `${(parseFloat(t.value) * 100).toFixed(0)}%` : formatNum(parseFloat(t.value));
+    return `${val} if ${varName} ${t.op} ${formatNum(parseFloat(t.threshold))}`;
+  });
+  const defVal = allDecimal
+    ? `${(parseFloat(chain.defaultValue) * 100).toFixed(0)}%`
+    : formatNum(parseFloat(chain.defaultValue));
+  rows.push(`${defVal} otherwise`);
+  return rows.join('; ');
+}
+
+/**
+ * Returns true if all values in a lookup chain are between 0 and 1 (rate/percentage).
+ */
+function isRateChain(chain) {
+  const allValues = [...chain.tiers.map(t => parseFloat(t.value)), parseFloat(chain.defaultValue)];
+  return allValues.every(v => !isNaN(v) && v > 0 && v <= 1);
+}
+
+/**
+ * Register a lookup chain as a definition and return a short label like [GPA Rate].
+ */
+function registerChainDefinition(chain) {
+  const varName = chain.variable.replace(/^\$/, '');
+  const isRate = isRateChain(chain);
+  const baseName = `${varName} ${isRate ? 'Rate' : 'Amount'}`;
+  const detail = describeLookupChainEnglish(chain);
+  return addDefinition(baseName, detail);
+}
+
+/**
+ * Split on * at parenthesis depth 0.
+ */
+function splitMultiplicativeAtDepth0(expr) {
+  const factors = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < expr.length; i++) {
+    const ch = expr[i];
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    else if (depth === 0 && ch === '*') {
+      factors.push(expr.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  factors.push(expr.slice(start).trim());
+  return factors.filter(f => f !== '');
+}
+
+/**
+ * Split on additive operators (+/-) at parenthesis depth 0,
+ * treating only binary operators (not unary minus).
+ * Returns array of { sign: '+' or '-', term: string }.
+ */
+function splitArithmeticTerms(expr) {
+  const terms = [];
+  let depth = 0;
+  let start = 0;
+  let sign = '+';
+  for (let i = 0; i < expr.length; i++) {
+    const ch = expr[i];
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    else if (depth === 0 && (ch === '+' || ch === '-') && i > 0) {
+      const before = expr.slice(0, i).trimEnd();
+      const lastChar = before[before.length - 1];
+      if (lastChar && !/[+\-*\/%(<>=!?:]/.test(lastChar)) {
+        terms.push({ sign, term: expr.slice(start, i).trim() });
+        sign = ch;
+        start = i + 1;
+      }
+    }
+  }
+  if (start < expr.length) {
+    terms.push({ sign, term: expr.slice(start).trim() });
+  }
+  return terms.filter(t => t.term !== '');
+}
+
+// ── Layered Pattern Detection (clamp + round + base) ──────────────────────
+
+/**
+ * Detect clamp/round/base layered patterns in a ternary tree.
+ * Pattern: X < low ? low : (X > high ? high : ROUND(X, step))
+ * Returns { layers: [...], baseExpr, baseDescription } or null.
+ */
+function detectLayeredPattern(parsed) {
+  if (parsed.type !== 'ternary') return null;
+  const layers = [];
+  let current = parsed;
+  let baseExpr = null;
+
+  // ── Low clamp: EXPR < LOW ? LOW : ... ──
+  const cond1 = stripDisplayParens(current.conditionRaw || '');
+  const trueV1 = current.trueVal.type === 'value' ? stripDisplayParens(current.trueVal.content) : null;
+  // Match "COMPLEX_EXPR < NUMBER" — the EXPR may itself be a ternary inside parens
+  const lowMatch = extractComparisonParts(cond1, '<');
+  if (lowMatch && trueV1 && normalizeWS(trueV1) === normalizeWS(lowMatch.right)) {
+    baseExpr = lowMatch.left;
+    const lowVal = lowMatch.right;
+
+    // ── High clamp in false branch: EXPR > HIGH ? HIGH : ... ──
+    if (current.falseVal.type === 'ternary') {
+      const cond2 = stripDisplayParens(current.falseVal.conditionRaw || '');
+      const trueV2 = current.falseVal.trueVal.type === 'value'
+        ? stripDisplayParens(current.falseVal.trueVal.content) : null;
+      const highMatch = extractComparisonParts(cond2, '>');
+      if (highMatch && trueV2 && normalizeWS(trueV2) === normalizeWS(highMatch.right)
+          && normalizeWS(baseExpr) === normalizeWS(highMatch.left)) {
+        layers.push({
+          type: 'clamp',
+          low: lowVal,
+          high: highMatch.right,
+          description: `Clamped between ${formatNum(parseFloat(lowVal))} and ${formatNum(parseFloat(highMatch.right))}`
+        });
+        current = current.falseVal.falseVal;
+      } else {
+        // Just a floor
+        layers.push({
+          type: 'floor',
+          value: lowVal,
+          description: `Minimum of ${formatNum(parseFloat(lowVal))}`
+        });
+        current = current.falseVal;
+      }
+    }
+  }
+
+  // ── High clamp without low: EXPR > HIGH ? HIGH : ... ──
+  if (layers.length === 0) {
+    const highOnly = extractComparisonParts(cond1, '>');
+    if (highOnly && trueV1 && normalizeWS(trueV1) === normalizeWS(highOnly.right)) {
+      baseExpr = highOnly.left;
+      layers.push({
+        type: 'ceiling',
+        value: highOnly.right,
+        description: `Maximum of ${formatNum(parseFloat(highOnly.right))}`
+      });
+      current = current.falseVal;
+    }
+  }
+
+  // ── Round-to-nearest inside the clamp ──
+  if (current.type === 'ternary') {
+    const roundCond = stripDisplayParens(current.conditionRaw || '');
+    // Find "% STEP" at depth 0, then "< HALF"
+    const modInfo = extractModuloComparison(roundCond);
+    if (modInfo && modInfo.half === modInfo.step / 2) {
+      layers.push({
+        type: 'round',
+        step: String(modInfo.step),
+        description: `Rounded to nearest ${formatNum(modInfo.step)}`
+      });
+      if (!baseExpr) baseExpr = modInfo.baseExpr;
+    }
+  }
+
+  if (layers.length === 0 || !baseExpr) return null;
+
+  // ── Describe the base expression ──
+  const baseStripped = stripDisplayParens(baseExpr);
+  let baseDescription;
+
+  if (baseStripped.includes('?') && baseStripped.includes(':')) {
+    const baseParsed = parseTernaryStructure(baseStripped);
+    if (baseParsed.type === 'ternary') {
+      const bCond = stripDisplayParens(baseParsed.conditionRaw || '');
+      const bTrue = baseParsed.trueVal.type === 'value'
+        ? stripDisplayParens(baseParsed.trueVal.content) : null;
+      const bFalse = baseParsed.falseVal.type === 'value'
+        ? stripDisplayParens(baseParsed.falseVal.content) : null;
+      if (bTrue && bFalse) {
+        const condDesc = formatExprNumbers(bCond);
+        baseDescription = `${formatExprNumbers(bTrue)} when ${condDesc}; otherwise ${formatExprNumbers(bFalse)}`;
+      }
+    }
+  }
+  if (!baseDescription) {
+    baseDescription = formatExprNumbers(baseStripped);
+  }
+
+  return { layers, baseExpr, baseDescription };
+}
+
+/**
+ * Extract left/right sides of a comparison operator at depth 0.
+ * E.g. for "(complex expr) < 1000" returns { left: "(complex expr)", right: "1000" }.
+ */
+function extractComparisonParts(expr, op) {
+  let depth = 0;
+  for (let i = expr.length - 1; i >= 0; i--) {
+    const ch = expr[i];
+    if (ch === ')') depth++;
+    else if (ch === '(') depth--;
+    else if (depth === 0) {
+      // Check for the operator (single char < or >)
+      if (ch === op && expr[i-1] !== '=' && expr[i+1] !== '=') {
+        const left = expr.slice(0, i).trim();
+        const right = expr.slice(i + 1).trim();
+        if (left && right) return { left, right };
+      }
+    }
+  }
+  return null;
+}
+
+/** Normalize whitespace for comparison */
+function normalizeWS(s) { return s.replace(/\s+/g, ''); }
+
+/**
+ * Extract (EXPR % STEP) < HALF from a condition string.
+ * Finds % at depth 0, then < at depth 0.
+ */
+function extractModuloComparison(expr) {
+  // First find the < comparison at depth 0 (scan from right)
+  const cmpParts = extractComparisonParts(expr, '<');
+  if (!cmpParts) return null;
+  const halfStr = cmpParts.right.trim();
+  const half = parseInt(halfStr);
+  if (isNaN(half)) return null;
+
+  // Left side should be "EXPR % STEP" — find % at depth 0
+  const leftSide = stripDisplayParens(cmpParts.left.trim());
+  let depth = 0;
+  let modIdx = -1;
+  for (let i = leftSide.length - 1; i >= 0; i--) {
+    const ch = leftSide[i];
+    if (ch === ')') depth++;
+    else if (ch === '(') depth--;
+    else if (depth === 0 && ch === '%') { modIdx = i; break; }
+  }
+  if (modIdx < 0) return null;
+
+  const baseExpr = leftSide.slice(0, modIdx).trim();
+  const stepStr = leftSide.slice(modIdx + 1).trim();
+  const step = parseInt(stepStr);
+  if (isNaN(step) || !baseExpr) return null;
+
+  return { baseExpr, step, half };
+}
+
+/**
+ * Detect and describe an embedded ternary within an arithmetic expression.
+ * Handles AND/OR patterns, simple conditionals, and lookup chains.
+ */
+function describeEmbeddedTernary(expr) {
+  const stripped = stripDisplayParens(expr);
+  const parsed = parseTernaryStructure(stripped);
+  if (parsed.type !== 'ternary') return null;
+
+  // ── Try layered pattern detection (clamp + round + base) first ──
+  const layered = detectLayeredPattern(parsed);
+  if (layered) {
+    const baseName = addDefinition('Base Amount', layered.baseDescription);
+    const layerDescs = layered.layers.map(l => l.description.toLowerCase());
+    return `[${baseName}], ${layerDescs.join(', ')}`;
+  }
+
+  const cond = stripDisplayParens(parsed.conditionRaw || '');
+  const trueVal = parsed.trueVal.type === 'value' ? stripDisplayParens(parsed.trueVal.content) : null;
+  const falseVal = parsed.falseVal.type === 'value' ? stripDisplayParens(parsed.falseVal.content) : null;
+
+  // AND pattern: ($a ? 1 : 0) + ($b ? 1 : 0) == N ? result : default
+  const andMatch = cond.match(/^((?:\([^)]*\? 1 : 0\)\s*\+\s*)*\([^)]*\? 1 : 0\))\s*==\s*(\d+)$/);
+  if (andMatch && trueVal !== null && falseVal !== null) {
+    const parts = andMatch[1].match(/\(([^?]+)\? 1 : 0\)/g);
+    if (parts) {
+      const conditions = parts.map(p => {
+        const inner = p.match(/\((.+?)\s*\? 1 : 0\)/);
+        return inner ? conditionToEnglishSimple(inner[1].trim()) : p;
+      });
+      const n = parseInt(andMatch[2]);
+      const prefix = conditions.length === n && conditions.length === 2 ? 'both '
+        : conditions.length === n && conditions.length > 2 ? 'all of: ' : '';
+      if (falseVal === '0') return `${formatExprNumbers(trueVal)} when ${prefix}${conditions.join(' AND ')}`;
+      return `${formatExprNumbers(trueVal)} when ${prefix}${conditions.join(' AND ')}, otherwise ${formatExprNumbers(falseVal)}`;
+    }
+  }
+
+  // OR pattern: ($a ? 1 : 0) + ($b ? 1 : 0) > 0
+  const orMatch = cond.match(/^((?:\([^)]*\? 1 : 0\)\s*\+\s*)*\([^)]*\? 1 : 0\))\s*>\s*0$/);
+  if (orMatch && trueVal !== null && falseVal !== null) {
+    const parts = orMatch[1].match(/\(([^?]+)\? 1 : 0\)/g);
+    if (parts) {
+      const conditions = parts.map(p => {
+        const inner = p.match(/\((.+?)\s*\? 1 : 0\)/);
+        return inner ? conditionToEnglishSimple(inner[1].trim()) : p;
+      });
+      if (falseVal === '0') return `${formatExprNumbers(trueVal)} when ${conditions.join(' OR ')}`;
+      return `${formatExprNumbers(trueVal)} when ${conditions.join(' OR ')}, otherwise ${formatExprNumbers(falseVal)}`;
+    }
+  }
+
+  // Simple conditional: condition ? result : 0  →  "result if condition"
+  if (trueVal !== null && falseVal === '0') {
+    const trueDesc = trueVal.includes('?') ? describeArithmeticExpr(trueVal) : formatExprNumbers(trueVal);
+    const condSimple = conditionToEnglishSimple(cond);
+    const result = `${trueDesc} if ${condSimple}`;
+    return result;
+  }
+  if (trueVal === '0' && falseVal !== null) {
+    const falseDesc = falseVal.includes('?') ? describeArithmeticExpr(falseVal) : formatExprNumbers(falseVal);
+    const condSimple = conditionToEnglishSimple(cond);
+    const result = `${falseDesc} unless ${condSimple}`;
+    return result;
+  }
+
+  // Lookup chain → register as definition and return short label
+  const chain = extractLookupChain(stripped);
+  if (chain) {
+    const label = registerChainDefinition(chain);
+    return `[${label}]`;
+  }
+
+  // Simple ternary with both values
+  if (trueVal !== null && falseVal !== null) {
+    let condDesc = conditionToEnglishSimple(cond);
+    condDesc = autoShortenIfLong(condDesc, 'Condition', 80);
+    let trueDesc = trueVal.includes('?') ? describeArithmeticExpr(trueVal) : formatExprNumbers(trueVal);
+    trueDesc = autoShortenIfLong(trueDesc, 'Amount', 60);
+    let falseDesc = falseVal.includes('?') ? describeArithmeticExpr(falseVal) : formatExprNumbers(falseVal);
+    falseDesc = autoShortenIfLong(falseDesc, 'Amount', 60);
+    return `${trueDesc} if ${condDesc}, else ${falseDesc}`;
+  }
+
+  // Complex ternary where branches contain sub-ternaries — describe as definitions
+  let condDesc2 = conditionToEnglishSimple(cond);
+  condDesc2 = autoShortenIfLong(condDesc2, 'Condition', 80);
+  const trueText = parsed.trueVal.type !== 'value'
+    ? describeAsDefinition(parsed.trueVal, 'Award')
+    : (trueVal.includes('?') ? autoShortenIfLong(describeArithmeticExpr(trueVal), 'Award', 60) : formatExprNumbers(trueVal));
+  const falseText = parsed.falseVal.type !== 'value'
+    ? describeAsDefinition(parsed.falseVal, 'Fallback')
+    : (falseVal ? (falseVal.includes('?') ? autoShortenIfLong(describeArithmeticExpr(falseVal), 'Fallback', 60) : formatExprNumbers(falseVal)) : describeAsDefinition(parsed.falseVal, 'Fallback'));
+  return `${trueText} if ${condDesc2}, else ${falseText}`;
+}
+
+/**
+ * Recursively describe a ternary sub-tree and register it as a named definition.
+ * Returns a short [Label] reference.
+ */
+function describeAsDefinition(node, baseName) {
+  // Serialize the subtree to text, adding parens around nested ternaries
+  function serialize(n) {
+    if (n.type === 'value') return stripDisplayParens(n.content);
+    const c = stripDisplayParens(n.conditionRaw || '');
+    return `(${c} ? ${serialize(n.trueVal)} : ${serialize(n.falseVal)})`;
+  }
+  const text = serialize(node);
+  const desc = describeArithmeticExpr(text);
+  const label = addDefinition(baseName, desc);
+  return `[${label}]`;
+}
+
+/**
+ * If a single-line description is too long, register it as a definition and return [Label].
+ * Otherwise return the description as-is.
+ */
+function autoShortenIfLong(desc, baseName, threshold) {
+  if (!threshold) threshold = 60;
+  if (desc.length <= threshold) return desc;
+  // Already a definition reference
+  if (/^\[.+\]$/.test(desc)) return desc;
+  const label = addDefinition(baseName, desc);
+  return `[${label}]`;
+}
+
+/**
+ * Describe a full arithmetic expression that may contain embedded ternaries.
+ * Returns a human-readable English string.
+ */
+function describeArithmeticExpr(expr, opts) {
+  opts = opts || {};
+  expr = stripDisplayParens(expr).trim();
+
+  // Simple variable — keep $
+  if (/^\$[a-zA-Z_][a-zA-Z0-9_]*$/.test(expr)) return expr;
+  // Simple number — format with commas
+  if (/^-?[0-9]+(\.[0-9]+)?$/.test(expr)) return formatNum(parseFloat(expr));
+
+  // If this is itself a ternary, describe it directly
+  if (expr.includes('?') && expr.includes(':')) {
+    const asTernary = describeEmbeddedTernary(expr);
+    if (asTernary) return asTernary;
+  }
+
+  const terms = splitArithmeticTerms(expr);
+  if (terms.length === 0) return formatExprNumbers(expr);
+
+  const described = [];
+  for (const { sign, term } of terms) {
+    const stripped = stripDisplayParens(term);
+
+    // Term contains embedded ternary
+    if (stripped.includes('?') && stripped.includes(':')) {
+      // Check for multiplication by a proration/rate factor: EXPR * (chain)
+      const mulParts = splitMultiplicativeAtDepth0(stripped);
+      if (mulParts.length >= 2) {
+        const factorDescs = [];
+        for (const factor of mulParts) {
+          const factorStripped = stripDisplayParens(factor);
+          if (factorStripped.includes('?')) {
+            const chain = extractLookupChain(factorStripped);
+            if (chain) {
+              const label = registerChainDefinition(chain);
+              factorDescs.push(`× [${label}]`);
+              continue;
+            }
+            const embDesc = describeEmbeddedTernary(factorStripped);
+            if (embDesc) { factorDescs.push(embDesc); continue; }
+          }
+          // If factor is a parenthesized group with +/- inside, keep parens for precedence
+          const factorFmt = formatExprNumbers(factorStripped);
+          if (factor.trim().startsWith('(') && /[+\-]/.test(factorStripped) && factorDescs.length < mulParts.length - 1) {
+            factorDescs.push(`(${factorFmt})`);
+          } else {
+            factorDescs.push(factorFmt);
+          }
+        }
+        // Wrap conditional first factor in parens to avoid precedence confusion
+        if (factorDescs[0] && /\b(if|when|unless)\b/.test(factorDescs[0])) {
+          factorDescs[0] = `(${factorDescs[0]})`;
+        }
+        let productText = factorDescs.join(' ');
+        productText = autoShortenIfLong(productText, /×\s*\[/.test(productText) ? 'Supplement' : 'Product', 70);
+        described.push({ sign, text: productText });
+        continue;
+      }
+
+      // Try as a single embedded ternary
+      const desc = describeEmbeddedTernary(stripped);
+      if (desc) { described.push({ sign, text: desc }); continue; }
+    }
+
+    // Plain term — keep $variables, format numbers
+    described.push({ sign, text: formatExprNumbers(stripped) });
+  }
+
+  // Auto-shorten any remaining long terms into definitions
+  for (let i = 0; i < described.length; i++) {
+    const t = described[i].text;
+    if (t.length > 70) {
+      const baseName = /×\s*\[/.test(t) ? 'Supplement' : /\bif\b/.test(t) ? 'Amount' : 'Subtotal';
+      described[i].text = autoShortenIfLong(t, baseName, 70);
+    }
+  }
+
+  // Build the final string: use actual math operators
+  const parts = [];
+  for (let i = 0; i < described.length; i++) {
+    const { sign, text } = described[i];
+    if (i === 0) {
+      parts.push(sign === '-' ? `-${text}` : text);
+    } else {
+      parts.push(`${sign} ${text}`);
+    }
+  }
+  // Multi-line: one term per line when there are 3+ terms
+  if (opts.multiLine && parts.length >= 3) {
+    return parts.join('\n');
+  }
+  return parts.join(' ');
+}
+
+/**
+ * Format numbers in an expression with commas, keeping everything else intact.
+ */
+function formatExprNumbers(expr) {
+  let s = expr;
+  // Simplify pure arithmetic: N + M, N * M, N - M where both are plain numbers
+  s = s.replace(/\b(\d+(?:\.\d+)?)\s*([+\-*])\s*(\d+(?:\.\d+)?)\b/g, (m, a, op, b) => {
+    const na = parseFloat(a), nb = parseFloat(b);
+    if (isNaN(na) || isNaN(nb)) return m;
+    let result;
+    if (op === '+') result = na + nb;
+    else if (op === '-') result = na - nb;
+    else if (op === '*') result = na * nb;
+    else return m;
+    return formatNum(result);
+  });
+  // Format remaining large numbers
+  s = s.replace(/\b(\d{4,})(?:\.\d+)?\b/g, (m) => {
+    const n = parseFloat(m);
+    return isNaN(n) ? m : formatNum(n);
+  });
+  // Convert * to × for readability
+  s = s.replace(/\s*\*\s*/g, ' × ');
+  return s;
 }
 
 function reconstructExcel(node) {
@@ -679,6 +1449,9 @@ function explainPseudocode(pseudocode) {
   const code = pseudocode.trim();
   const parsed = parseTernaryStructure(code);
 
+  // Reset definitions registry before building descriptions
+  resetDefinitions();
+
   // Collect variables
   const vars = new Set();
   function collectVars(node) {
@@ -772,7 +1545,20 @@ function explainPseudocode(pseudocode) {
   const displaySteps = structures.length > 0 ? coreSteps : steps;
 
   if (displaySteps.length === 0 && structures.length === 0) {
-    summaryLines.push(`This expression simply returns: ${stripDisplayParens(parsed.content)}`);
+    const rawVal = stripDisplayParens(parsed.content);
+    // For the top-level summary, use multi-line mode for long expressions
+    const englishVal = describeArithmeticExpr(rawVal, { multiLine: true });
+    const defs = getDefinitions();
+    if (defs.length > 0) {
+      summaryLines.push('This formula computes:');
+      // englishVal may contain embedded newlines from multiLine mode
+      const lines = englishVal.split('\n');
+      for (const line of lines) {
+        summaryLines.push(`  ${line}`);
+      }
+    } else {
+      summaryLines.push(`This expression simply returns: ${englishVal}`);
+    }
   } else {
     if (displaySteps.length > 0) {
       summaryLines.push(`This formula has ${displaySteps.length} decision point${displaySteps.length > 1 ? 's' : ''}.`);
@@ -805,6 +1591,43 @@ function explainPseudocode(pseudocode) {
       } else {
         summaryLines.push(`  \u2717 If NO  \u2192 go to Step ${step.falseOutcome.stepNum}`);
       }
+    }
+  }
+
+  // Append definitions (lookup tables, rate schedules, etc.)
+  const defs = getDefinitions();
+  if (defs.length > 0) {
+    // Post-process: replace inline bracket descriptions [X if Y, else Z]
+    // with matching definition labels where possible
+    for (const d of defs) {
+      d.detail = d.detail.replace(/\[([^\[\]]+)\]/g, (m, content) => {
+        const match = defs.find(d2 => d2.detail === content);
+        if (match) return `[${match.label}]`;
+        return m;
+      });
+    }
+    // Post-process: replace unbracketed text that matches a definition detail
+    // Sort by detail length (longest first) to replace the most specific match
+    const sortedDefs = [...defs].sort((a, b) => b.detail.length - a.detail.length);
+    for (const d of defs) {
+      for (const candidate of sortedDefs) {
+        if (candidate === d) continue;
+        if (candidate.detail.length < 15) continue; // skip short definitions
+        // Don't replace inside definition's own text or simple refs
+        const safeDetail = candidate.detail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp(safeDetail, 'g');
+        const replacement = `[${candidate.label}]`;
+        if (d.detail.includes(candidate.detail) && !d.detail.includes(replacement)) {
+          d.detail = d.detail.replace(re, replacement);
+        }
+      }
+      // Clean up: remove parens around sole bracket refs like ([Label]) → [Label]
+      d.detail = d.detail.replace(/\((\[[^\]]+\])\)/g, '$1');
+    }
+    summaryLines.push('');
+    summaryLines.push('Where:');
+    for (const d of defs) {
+      summaryLines.push(`  [${d.label}] = ${d.detail}`);
     }
   }
 
@@ -916,15 +1739,21 @@ function detectPatterns(node) {
       }
     }
 
-    // ROUNDUP pattern: expr - (expr % step) + ((expr % step) ? step : 0)
-    if (trueV || falseV) {
-      const upCheck = (trueV || '').match(/^(.+?)\s*%\s*(.+)$/);
-      if (upCheck) {
-        const key = `ROUNDUP(${clean(upCheck[1])}, ${clean(upCheck[2])})`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          results.push({ type: 'roundup', value: clean(upCheck[1]), step: clean(upCheck[2]),
-            description: `ROUNDUP pattern: rounds ${clean(upCheck[1])} up to next ${clean(upCheck[2])}` });
+    // ROUNDUP pattern: the converter outputs:
+    //   (VALUE) - (VALUE % STEP) + ((VALUE % STEP) ? STEP : 0)
+    // The condition must be a modulo expression: VALUE % STEP
+    if (trueV && falseV === '0') {
+      const modCond = cond.match(/^(.+?)\s*%\s*(\d+(?:\.\d+)?)$/);
+      if (modCond) {
+        // Verify the true branch adds the step back (roundup shape)
+        const step = modCond[2];
+        if (trueV === step || trueV.includes(step)) {
+          const key = `ROUNDUP(${clean(modCond[1])}, ${step})`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            results.push({ type: 'roundup', value: clean(modCond[1]), step,
+              description: `ROUNDUP pattern: rounds ${clean(modCond[1])} up to next ${step}` });
+          }
         }
       }
     }
@@ -957,7 +1786,7 @@ function detectStructure(rootNode) {
       structures.push({
         type: 'guard',
         variable: guardMatch[1],
-        description: `Only applies when ${guardMatch[1].slice(1)} > 0; otherwise returns 0`,
+        description: `Only applies when ${guardMatch[1]} > 0; otherwise returns 0`,
       });
       coreNode = coreNode.trueVal;
     }
@@ -977,7 +1806,7 @@ function detectStructure(rootNode) {
           type: 'clamp',
           min: floorMatch[1],
           max: ceilMatch[1],
-          description: `Result is clamped between ${floorMatch[1]} (minimum) and ${ceilMatch[1]} (maximum)`,
+          description: `Result is clamped between ${formatNum(parseFloat(floorMatch[1]))} (minimum) and ${formatNum(parseFloat(ceilMatch[1]))} (maximum)`,
         });
         coreNode = coreNode.falseVal.falseVal;
       }

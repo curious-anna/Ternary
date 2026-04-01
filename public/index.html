@@ -228,8 +228,8 @@
     }
 
     .token-keyword { color: #c586c0; font-weight: 600; }
-    .token-operator { color: #f59e0b; font-weight: 500; }
-    .token-variable { color: #7dd3fc; font-weight: 500; }
+    .token-operator { color: #f59e0b; font-weight: 600; }
+    .token-variable { color: #7dd3fc; font-weight: 600; }
     .token-number { color: #fbbf24; font-weight: 500; }
     .token-bracket { color: #94a3b8; font-weight: 600; }
     .token-unknown { color: #cbd5e1; }
@@ -238,16 +238,226 @@
     .token-label-true { color: #4ade80; }
     .token-label-false { color: #f87171; }
     .token-connector { color: #475569; }
-    .token-step { color: #67e8f9; }
-    .token-yes { color: #4ade80; }
-    .token-no { color: #f87171; }
-    .token-keyword  { color: #c586c0; font-weight: 600; }
-    .token-operator { color: #f59e0b; font-weight: 500; }
-    .token-variable { color: #7dd3fc; font-weight: 500; }
-    .token-number   { color: #fbbf24; font-weight: 500; }
-    .token-bracket  { color: #94a3b8; font-weight: 600; }
-    .token-unknown  { color: #cbd5e1; }
+    .token-step {
+      color: #67e8f9;
+      font-weight: 700;
+      font-size: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .token-yes { color: #4ade80; font-weight: 600; }
+    .token-no { color: #f87171; font-weight: 600; }
+    .token-check { color: #a5b4fc; font-style: italic; }
 
+    /* Bracketed labels — visually pop */
+    .token-bracket-label {
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(129, 140, 248, 0.4);
+      border-radius: 6px;
+      padding: 2px 7px;
+      color: #c7d2fe;
+      font-weight: 500;
+      display: inline;
+      white-space: nowrap;
+    }
+    .token-bracket-label .token-variable { color: #93c5fd; }
+    .token-bracket-label .token-number { color: #fde68a; }
+    .token-bracket-label .token-logic { color: #fb923c; }
+    .token-bracket-label .token-operator { color: #fbbf24; }
+
+    /* Definition labels in Where: section */
+    .token-def-label {
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(129, 140, 248, 0.5);
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .token-def-label.def-highlight {
+      box-shadow: 0 0 0 2px currentColor;
+      background: rgba(255,255,255,0.12);
+    }
+
+    /* Inline definition references (in formulas) */
+    .token-def-ref {
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(129, 140, 248, 0.35);
+      border-radius: 6px;
+      padding: 2px 7px;
+      font-weight: 500;
+      display: inline;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .token-def-ref.def-highlight {
+      box-shadow: 0 0 0 2px currentColor;
+      background: rgba(255,255,255,0.12);
+    }
+
+    /* Definition color palette (warm/cool tones, distinct from var colors) */
+    .def-color-0 { color: #f9a8d4; }   /* pink */
+    .def-color-1 { color: #fbbf24; }   /* amber */
+    .def-color-2 { color: #a78bfa; }   /* purple */
+    .def-color-3 { color: #34d399; }   /* emerald */
+    .def-color-4 { color: #fb923c; }   /* orange */
+    .def-color-5 { color: #22d3ee; }   /* cyan */
+    .def-color-6 { color: #e879f9; }   /* fuchsia */
+    .def-color-7 { color: #a3e635; }   /* lime */
+
+    /* ── Definition legend bar ───────────────────────────────────────────── */
+    .def-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+      background: rgba(49, 34, 67, 0.45);
+      border-radius: 8px;
+      border: 1px solid #5b3f7a;
+    }
+    .def-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+    .def-legend-item:hover {
+      background: rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.25);
+    }
+    .def-legend-item.def-highlight {
+      background: rgba(255,255,255,0.15);
+      border-color: currentColor;
+    }
+    .def-legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* Where: header */
+    .where-header {
+      color: #a78bfa;
+      font-weight: 700;
+      font-size: 15px;
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px solid #334155;
+    }
+
+    /* Section headers */
+    .token-section-header {
+      color: #a78bfa;
+      font-weight: 700;
+      font-size: 15px;
+    }
+
+    /* Logic operators — AND, OR */
+    .token-logic {
+      color: #fb923c;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .token-logic-soft {
+      color: #a5b4fc;
+      font-style: italic;
+    }
+
+    /* Conditional words — when, if, else, unless */
+    .token-cond-word {
+      color: #c586c0;
+      font-style: italic;
+    }
+    /* ── Formula header line */
+    .token-formula-header {
+      color: #94a3b8;
+      font-weight: 600;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Layer descriptors (clamp, round) */
+    .token-layer {
+      color: #38bdf8;
+      font-weight: 600;
+      font-style: italic;
+    }    /* ── Variable color palette — each variable gets a unique color ────── */
+    .token-variable[data-var] {
+      font-weight: 600;
+      border-radius: 3px;
+      padding: 0 2px;
+      transition: background 0.2s, box-shadow 0.2s;
+      cursor: default;
+    }
+    .token-variable[data-var].var-highlight {
+      box-shadow: 0 0 0 2px currentColor;
+      background: rgba(255,255,255,0.1);
+    }
+    .var-color-0 { color: #7dd3fc; }   /* sky */
+    .var-color-1 { color: #86efac; }   /* green */
+    .var-color-2 { color: #fca5a5; }   /* red */
+    .var-color-3 { color: #fcd34d; }   /* amber */
+    .var-color-4 { color: #c4b5fd; }   /* violet */
+    .var-color-5 { color: #f9a8d4; }   /* pink */
+    .var-color-6 { color: #67e8f9; }   /* cyan */
+    .var-color-7 { color: #fdba74; }   /* orange */
+    .var-color-8 { color: #a5b4fc; }   /* indigo */
+    .var-color-9 { color: #6ee7b7; }   /* emerald */
+
+    /* ── Variable legend bar ─────────────────────────────────────────────── */
+    .var-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+      background: rgba(30, 41, 59, 0.6);
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+    .var-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+    .var-legend-item:hover {
+      background: rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.25);
+    }
+    .var-legend-item.active {
+      background: rgba(255,255,255,0.15);
+      border-color: currentColor;
+    }
+    .var-legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
     /* ── Hint / info blocks ─────────────────────────────────────────────── */
     .hint { color: #475569; font-size: 14px; margin-bottom: 14px; line-height: 1.45; }
     .info-box { background: #e2e8f0; padding: 12px; border-radius: 8px; margin-bottom: 16px; }

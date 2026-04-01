@@ -12,27 +12,188 @@ function escapeHtml(text) {
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
+// ── Variable Color System ─────────────────────────────────────────────────────
+
+const VAR_COLORS = 10; // number of color classes
+let varColorMap = {};   // { varName: colorIndex }
+
+const DEF_COLORS = 8; // number of definition color classes
+let defColorMap = {};  // { defLabel: colorIndex }
+
+function assignVariableColors(text) {
+  varColorMap = {};
+  const vars = [];
+  const re = /\$[a-zA-Z_][a-zA-Z0-9_]*/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (!vars.includes(m[0])) vars.push(m[0]);
+  }
+  vars.forEach((v, i) => { varColorMap[v] = i % VAR_COLORS; });
+}
+
+function assignDefinitionColors(text) {
+  defColorMap = {};
+  const defs = [];
+  // Match definition labels from Where: section: [Label] = ...
+  const defRe = /^\s+\[([^\]]+)\]\s*=/gm;
+  let m;
+  while ((m = defRe.exec(text)) !== null) {
+    if (!defs.includes(m[1])) defs.push(m[1]);
+  }
+  defs.forEach((d, i) => { defColorMap[d] = i % DEF_COLORS; });
+}
+
+function buildVariableLegend() {
+  const vars = Object.keys(varColorMap);
+  if (vars.length === 0) return '';
+  const items = vars.map(v => {
+    const ci = varColorMap[v];
+    return `<span class="var-legend-item var-color-${ci}" data-var="${v}"><span class="var-legend-dot"></span>${v}</span>`;
+  }).join('');
+  return `<div class="var-legend" title="Variables">${items}</div>`;
+}
+
+function buildDefinitionLegend() {
+  const defs = Object.keys(defColorMap);
+  if (defs.length === 0) return '';
+  const items = defs.map(d => {
+    const ci = defColorMap[d];
+    return `<span class="def-legend-item def-color-${ci}" data-def="${escapeHtml(d)}"><span class="def-legend-dot"></span>[${escapeHtml(d)}]</span>`;
+  }).join('');
+  return `<div class="def-legend" title="Definitions">${items}</div>`;
+}
+
+function varSpan(varName) {
+  const ci = varColorMap[varName] !== undefined ? varColorMap[varName] : 0;
+  return `<span class="token-variable var-color-${ci}" data-var="${varName}">${varName}</span>`;
+}
+
+function defSpan(label, inner) {
+  const ci = defColorMap[label] !== undefined ? defColorMap[label] : 0;
+  return `<span class="token-def-ref def-color-${ci}" data-def="${escapeHtml(label)}">[${inner}]</span>`;
+}
+
 function highlightExplanation(text) {
-  const tokenRegex = /\[\d+\]|---|Step \d+:|→ If YES:|→ If NO:|condition:|if true:|if false:|[┌├└│]|\b(IF|THEN|ELSE)\b|\$[a-zA-Z0-9_]+|\b[0-9]+(?:\.[0-9]+)?\b|<=|>=|==|!=|[+\-*\/%?:()]|\n|[ \t]+|./g;
-  return text.replace(tokenRegex, (token) => {
-    if (token === '\n') return '<br />';
-    if (/^[ \t]+$/.test(token)) return token.replace(/ /g, '&nbsp;').replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
-    if (/^\[\d+\]$/.test(token)) return `<span class="token-depth">${token}</span>`;
-    if (token === 'condition:') return `<span class="token-label-cond">${token}</span>`;
-    if (token === 'if true:') return `<span class="token-label-true">${token}</span>`;
-    if (token === 'if false:') return `<span class="token-label-false">${token}</span>`;
-    if (/^[┌├└│]$/.test(token)) return `<span class="token-connector">${token}</span>`;
-    if (/^Step \d+:$/.test(token)) return `<span class="token-step">${token}</span>`;
-    if (token === '→ If YES:') return `<span class="token-yes">${token}</span>`;
-    if (token === '→ If NO:') return `<span class="token-no">${token}</span>`;
-    if (token === '---') return '<hr style="border-color:#334155;margin:14px 0">';
-    if (/^(IF|THEN|ELSE)$/.test(token)) return `<span class="token-keyword">${token}</span>`;
-    if (/^\$[a-zA-Z0-9_]+$/.test(token)) return `<span class="token-variable">${token}</span>`;
-    if (/^[0-9]+(?:\.[0-9]+)?$/.test(token)) return `<span class="token-number">${token}</span>`;
-    if (/^(<=|>=|==|!=|[+\-*\/%?:])$/.test(token)) return `<span class="token-operator">${escapeHtml(token)}</span>`;
-    if (/^[()]$/.test(token)) return `<span class="token-bracket">${token}</span>`;
-    return escapeHtml(token);
+  // Process line-by-line for better control
+  const lines = text.split('\n');
+  const htmlLines = lines.map(line => {
+    // Check for special line types
+    if (/^---$/.test(line.trim())) return '<hr style="border-color:#334155;margin:14px 0">';
+
+    // "Where:" header
+    if (/^Where:/.test(line.trim())) {
+      return `<div class="where-header">Where:</div>`;
+    }
+
+    // Formula header lines
+    const headerMatch = line.match(/^(This formula computes:|This expression simply returns:|This formula has \d+ decision points?\.)(.*)$/);
+    if (headerMatch) {
+      return `<span class="token-formula-header">${escapeHtml(headerMatch[1])}</span>${headerMatch[2] ? tokenizeLine(headerMatch[2]) : ''}`;
+    }
+
+    // Definition lines: [Label] = detail
+    const defMatch = line.match(/^(\s+)\[([^\]]+)\]\s*=\s*(.+)$/);
+    if (defMatch) {
+      const indent = defMatch[1].replace(/ /g, '&nbsp;');
+      const label = defMatch[2];
+      const ci = defColorMap[label] !== undefined ? defColorMap[label] : 0;
+      const detail = tokenizeLine(defMatch[3]);
+      return `${indent}<span class="token-def-label def-color-${ci}" data-def="${escapeHtml(label)}">[${escapeHtml(label)}]</span> <span class="token-operator">=</span> ${detail}`;
+    }
+
+    return tokenizeLine(line);
   });
+  return htmlLines.join('<br />');
+}
+
+function tokenizeLine(line) {
+  // Tokenize with a comprehensive regex
+  const tokenRegex = /\[([^\]]+)\]|Step \d+:|Check whether |Structure:|Detected patterns:|✓ If YES → |✗ If NO  → |return |go to |clamped between |rounded to nearest |Minimum of |Maximum of | and |\$[a-zA-Z_][a-zA-Z0-9_]*|\b\d{1,3}(?:,\d{3})*(?:\.\d+)?%?\b|\b\d+(?:\.\d+)?%?\b|<=|>=|!=|==|×|AND |OR |both |all of: |when |if |else |unless |otherwise |prorated by |[+\-*\/%]|[?:()]|\n|[ \t]+|./g;
+  let result = '';
+  let match;
+  while ((match = tokenRegex.exec(line)) !== null) {
+    const token = match[0];
+    if (token === '\n') { result += '<br />'; continue; }
+    if (/^[ \t]+$/.test(token)) { result += token.replace(/ /g, '&nbsp;').replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;'); continue; }
+
+    // Bracketed labels like [500 when both sai <= 0 AND pell > 0]
+    if (match[1] !== undefined) {
+      const bracketLabel = match[1];
+      // If this matches a known definition, use colored def-ref
+      if (defColorMap[bracketLabel] !== undefined) {
+        result += defSpan(bracketLabel, escapeHtml(bracketLabel));
+        continue;
+      }
+      result += `<span class="token-bracket-label">[${tokenizeBracketContent(bracketLabel)}]</span>`;
+      continue;
+    }
+
+    // Step headers
+    if (/^Step \d+:$/.test(token)) { result += `<span class="token-step">${token}</span>`; continue; }
+    if (token === 'Check whether ') { result += `<span class="token-check">Check whether </span>`; continue; }
+    if (token === 'Structure:') { result += `<span class="token-section-header">${token}</span>`; continue; }
+    if (token === 'Detected patterns:') { result += `<span class="token-section-header">${token}</span>`; continue; }
+
+    // Yes/No arrows
+    if (token === '✓ If YES → ') { result += `<span class="token-yes">✓ If YES →</span> `; continue; }
+    if (token === '✗ If NO  → ') { result += `<span class="token-no">✗ If NO  →</span> `; continue; }
+    if (token === 'return ') { result += `<span class="token-keyword">return</span> `; continue; }
+    if (token === 'go to ') { result += `<span class="token-keyword">go to</span> `; continue; }
+
+    // Layer descriptors (clamp, round)
+    if (token === 'clamped between ') { result += `<span class="token-layer">clamped between </span>`; continue; }
+    if (token === 'rounded to nearest ') { result += `<span class="token-layer">rounded to nearest </span>`; continue; }
+    if (token === 'Minimum of ') { result += `<span class="token-layer">Minimum of </span>`; continue; }
+    if (token === 'Maximum of ') { result += `<span class="token-layer">Maximum of </span>`; continue; }
+
+    // Connectors
+    if (token === ' and ') { result += ` <span class="token-cond-word">and</span> `; continue; }
+
+    // Variables with $ — use color map
+    if (/^\$[a-zA-Z_][a-zA-Z0-9_]*$/.test(token)) { result += varSpan(token); continue; }
+
+    // Numbers (with commas, percentages)
+    if (/^\d/.test(token)) { result += `<span class="token-number">${token}</span>`; continue; }
+
+    // Logical keywords
+    if (token === 'AND ') { result += `<span class="token-logic">AND</span> `; continue; }
+    if (token === 'OR ') { result += `<span class="token-logic">OR</span> `; continue; }
+    if (token === 'both ') { result += `<span class="token-logic-soft">both </span>`; continue; }
+    if (token === 'all of: ') { result += `<span class="token-logic-soft">all of: </span>`; continue; }
+
+    // Conditional words
+    if (/^(when |if |else |unless |otherwise )$/.test(token)) { result += `<span class="token-cond-word">${token}</span>`; continue; }
+    if (token === 'prorated by ') { result += `<span class="token-cond-word">prorated by </span>`; continue; }
+
+    // Comparison operators
+    if (/^(<=|>=|!=|==|×)$/.test(token)) { result += `<span class="token-operator">${escapeHtml(token)}</span>`; continue; }
+
+    // Arithmetic operators
+    if (/^[+\-*\/%]$/.test(token)) { result += `<span class="token-operator">${escapeHtml(token)}</span>`; continue; }
+
+    // Parens
+    if (/^[?:()]$/.test(token)) { result += `<span class="token-bracket">${token}</span>`; continue; }
+
+    // Default
+    result += escapeHtml(token);
+  }
+  return result;
+}
+
+function tokenizeBracketContent(content) {
+  // Inside brackets, highlight variables, numbers, operators
+  const innerRegex = /\$[a-zA-Z_][a-zA-Z0-9_]*|\b\d{1,3}(?:,\d{3})*(?:\.\d+)?%?\b|\b\d+(?:\.\d+)?%?\b|<=|>=|!=|==|AND|OR|both |[+\-*\/%×]|./g;
+  let result = '';
+  let m;
+  while ((m = innerRegex.exec(content)) !== null) {
+    const t = m[0];
+    if (/^\$[a-zA-Z_]/.test(t)) { result += varSpan(t); continue; }
+    if (/^\d/.test(t)) { result += `<span class="token-number">${t}</span>`; continue; }
+    if (/^(AND|OR)$/.test(t)) { result += `<span class="token-logic">${t}</span>`; continue; }
+    if (/^(<=|>=|!=|==|[+\-*\/%×])$/.test(t)) { result += `<span class="token-operator">${escapeHtml(t)}</span>`; continue; }
+    result += escapeHtml(t);
+  }
+  return result;
 }
 
 function showValidationBadge(pseudocode) {
@@ -77,7 +238,15 @@ async function convertFormula() {
     showValidationBadge(json.pseudocode);
 
     const formatted = typeof json.explanation === 'string' ? json.explanation : '';
-    explanationEl.innerHTML = `<div class="explain-highlighted-code">${highlightExplanation(formatted)}</div>`;
+    assignVariableColors(formatted);
+    assignDefinitionColors(formatted);
+    const legend = buildVariableLegend();
+    const defLegend = buildDefinitionLegend();
+    explanationEl.innerHTML = `${legend}${defLegend}<div class="explain-highlighted-code">${highlightExplanation(formatted)}</div>`;
+
+    // Wire up variable and definition hover highlighting
+    wireVariableInteractivity();
+    wireDefinitionInteractivity();
 
   } catch (err) {
     resultEl.textContent = 'Network error: ' + err.message;
@@ -275,12 +444,14 @@ function renderExplanation(data) {
   let summaryText = data.summary;
   // Strip the Structure: block from summary text since we render it separately
   summaryText = summaryText.replace(/^Structure:\n(  \[.+\]\s.+\n)*\n?/m, '');
-  const summaryHtml = escapeHtml(summaryText)
-    .replace(/^(Step \d+:)/gm, '<span class="step-header">$1</span>')
-    .replace(/(✓ If YES →.*)/g, '<span class="yes-path">$1</span>')
-    .replace(/(✗ If NO\s+→.*)/g, '<span class="no-path">$1</span>')
-    .replace(/\n/g, '<br>');
+  assignVariableColors(summaryText);
+  assignDefinitionColors(summaryText);
+  const legend = buildVariableLegend();
+  const defLegend = buildDefinitionLegend();
+  const summaryHtml = `${legend}${defLegend}<div class="explain-highlighted-code">${highlightExplanation(summaryText)}</div>`;
   explainerSummary.innerHTML = summaryHtml;
+  wireVariableInteractivity();
+  wireDefinitionInteractivity();
 
   // ── Tables tab ────────────────────────────────────────────────────────
   if (data.tables && data.tables.length > 0) {
@@ -519,3 +690,97 @@ varGrid.addEventListener('keydown', (e) => {
     runTrace();
   }
 });
+
+// ── Variable interactivity: hover/click to highlight all occurrences ──────────
+
+function wireVariableInteractivity() {
+  // Legend items
+  document.querySelectorAll('.var-legend-item').forEach(item => {
+    const varName = item.dataset.var;
+    item.addEventListener('mouseenter', () => highlightVar(varName, true));
+    item.addEventListener('mouseleave', () => highlightVar(varName, false));
+    item.addEventListener('click', () => toggleVarPin(varName));
+  });
+
+  // Inline variable tokens
+  document.querySelectorAll('.token-variable[data-var]').forEach(span => {
+    const varName = span.dataset.var;
+    span.addEventListener('mouseenter', () => highlightVar(varName, true));
+    span.addEventListener('mouseleave', () => highlightVar(varName, false));
+    span.addEventListener('click', () => toggleVarPin(varName));
+  });
+}
+
+let pinnedVar = null;
+
+function highlightVar(varName, on) {
+  if (pinnedVar && pinnedVar !== varName) return; // don't override pin
+  document.querySelectorAll(`.token-variable[data-var="${varName}"]`).forEach(el => {
+    el.classList.toggle('var-highlight', on);
+  });
+  document.querySelectorAll(`.var-legend-item[data-var="${varName}"]`).forEach(el => {
+    el.classList.toggle('active', on);
+  });
+}
+
+function toggleVarPin(varName) {
+  if (pinnedVar === varName) {
+    // Unpin
+    highlightVar(varName, false);
+    pinnedVar = null;
+  } else {
+    // Unpin previous
+    if (pinnedVar) highlightVar(pinnedVar, false);
+    // Pin new
+    pinnedVar = varName;
+    highlightVar(varName, true);
+  }
+}
+
+// ── Definition interactivity: hover/click to highlight all occurrences ────────
+
+function wireDefinitionInteractivity() {
+  // Legend items
+  document.querySelectorAll('.def-legend-item').forEach(item => {
+    const defName = item.dataset.def;
+    item.addEventListener('mouseenter', () => highlightDef(defName, true));
+    item.addEventListener('mouseleave', () => highlightDef(defName, false));
+    item.addEventListener('click', () => toggleDefPin(defName));
+  });
+
+  // Inline definition references
+  document.querySelectorAll('.token-def-ref[data-def]').forEach(span => {
+    const defName = span.dataset.def;
+    span.addEventListener('mouseenter', () => highlightDef(defName, true));
+    span.addEventListener('mouseleave', () => highlightDef(defName, false));
+    span.addEventListener('click', () => toggleDefPin(defName));
+  });
+
+  // Definition labels in Where: section
+  document.querySelectorAll('.token-def-label[data-def]').forEach(span => {
+    const defName = span.dataset.def;
+    span.addEventListener('mouseenter', () => highlightDef(defName, true));
+    span.addEventListener('mouseleave', () => highlightDef(defName, false));
+    span.addEventListener('click', () => toggleDefPin(defName));
+  });
+}
+
+let pinnedDef = null;
+
+function highlightDef(defName, on) {
+  if (pinnedDef && pinnedDef !== defName) return; // don't override pin
+  document.querySelectorAll(`[data-def="${defName}"]`).forEach(el => {
+    el.classList.toggle('def-highlight', on);
+  });
+}
+
+function toggleDefPin(defName) {
+  if (pinnedDef === defName) {
+    highlightDef(defName, false);
+    pinnedDef = null;
+  } else {
+    if (pinnedDef) highlightDef(pinnedDef, false);
+    pinnedDef = defName;
+    highlightDef(defName, true);
+  }
+}
