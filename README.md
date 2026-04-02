@@ -1,14 +1,14 @@
-# Recreate Excel - Full Stack Converter
+# Ternary Expression Builder
 
-A small full-stack app (frontend + backend) to convert Excel-style input into a pseudocode function.
+A full-stack tool that converts standard function expressions (IF, MIN, MAX, ROUND, AND, OR) into pure nested ternary expressions. Built for workflows where the target expression language has no built-in functions, no control structures — only nested ternaries.
 
 ## Features
-- Frontend input field for Excel-like formula text
-- Backend parse/convert logic in Node/Express
-- Supports `IF`, `ROUND`, `ROUNDUP`, `ROUNDDOWN`, `MIN`, `MAX`, `AND`, `OR`
-- `ROUND(value, X)` is integer step-based (nearest X via remainder rule), not decimal-place rounding.
-- Supports Excel operators `=`, `==`, `<`, `>`, `<=`, `>=`, `<>`, `&&`, `||`
-- Outputs pseudocode expression only (no function wrapper): `condition ? true_result : false_result`
+- Write expressions using standard functions: `IF`, `MIN`, `MAX`, `AND`, `OR`, `ROUND`, `ROUNDUP`, `ROUNDDOWN`
+- Backend converts them to strict ternary-only output: `condition ? true_result : false_result`
+- Reverse mode: paste existing ternary code and get a plain-English breakdown
+- Try-It evaluator: plug in variable values and trace the decision path
+- Pattern detection: identifies MIN/MAX/ROUND/CLAMP patterns in ternary trees
+- Lookup table extraction for tiered decision logic
 
 ## Run locally
 1. `npm install`
@@ -41,10 +41,11 @@ Notes:
 - Static frontend files are served from `public/`.
 
 ## Usage
-- Enter formulas like:
-  - `=IF(A > 10 && B <= 20, ROUND(C/2,0), MAX(D, E))`
+- Enter expressions using standard functions:
+  - `IF(A > 10, 100, 0)`
+  - `MIN(A, MAX(B, C))`
   - `IF(AND(X >= 5, Y < 5), MIN(A, B), MAX(A, B))`
-  - `MAX(5, 8)`
-  - `($gpa > 3 || $act > 5, 500, 800)` (shorthand IF-style: condition, true, false)
-- Click Convert
-- Output is readable pseudocode expression
+  - `ROUND(MIN(A, MAX(B, 0)), 10)`
+  - `($gpa > 3 OR $act > 5, 500, 800)` (shorthand IF-style: condition, true, false)
+- Click Convert (or just type — live conversion is debounced)
+- Copy the ternary output directly into your target system

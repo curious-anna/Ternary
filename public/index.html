@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Excel to Pseudocode Converter</title>
+  <title>Ternary Expression Builder</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
 
@@ -903,38 +903,39 @@
 
     <!-- Header -->
     <div class="header">
-      <h1>Excel-to-Pseudocode Converter</h1>
-      <p class="tagline">Financial Logic · Net Price Calculator · Strict Ternary Only</p>
-      <span class="operator-badge">Allowed: == != &gt; &lt; &gt;= &lt;= ? : + - * / %</span>
+      <h1>Ternary Expression Builder</h1>
+      <p class="tagline">Write with standard functions → Get pure ternary output</p>
+      <span class="operator-badge">Output operators: == != &gt; &lt; &gt;= &lt;= ? : + - * / %</span>
     </div>
 
     <!-- Info box -->
     <div class="info-box">
-      <strong>Functions (case-insensitive):</strong>
+      <strong>Type expressions using these standard functions — they'll be converted to pure nested ternaries:</strong>
       <ul style="margin:8px 0 8px 20px; color:#334155; font-size:13px;">
         <li><code>IF(condition, trueValue, falseValue?)</code> — falseValue defaults to 0</li>
-        <li><code>MIN(a, b, …)</code> &nbsp;/&nbsp; <code>MAX(a, b, …)</code></li>
-        <li><code>AND(a, b, …)</code> &nbsp;/&nbsp; <code>OR(a, b, …)</code> — or infix <code>A AND B</code> / <code>A OR B</code></li>
-        <li><code>ROUND(x, step?)</code> &nbsp;/&nbsp; <code>ROUNDUP(x, step?)</code> &nbsp;/&nbsp; <code>ROUNDDOWN(x, step?)</code> — 2nd arg is the rounding increment (e.g. 10 = nearest 10, 5 = nearest 5); defaults to 1</li>
+        <li><code>MIN(a, b, …)</code> &nbsp;/&nbsp; <code>MAX(a, b, …)</code> — converted to comparison ternaries</li>
+        <li><code>AND(a, b, …)</code> &nbsp;/&nbsp; <code>OR(a, b, …)</code> — converted to flag-sum patterns; also supports infix <code>A AND B</code></li>
+        <li><code>ROUND(x, step?)</code> &nbsp;/&nbsp; <code>ROUNDUP(x, step?)</code> &nbsp;/&nbsp; <code>ROUNDDOWN(x, step?)</code> — converted to modulo ternaries (step defaults to 1)</li>
       </ul>
-      <div style="font-size:12px;color:#475569;">Shorthand: <code>(condition, trueValue, falseValue?)</code> — <code>=</code> prefix optional</div>
+      <div style="font-size:12px;color:#475569;">Shorthand: <code>(condition, trueValue, falseValue?)</code> — leading <code>=</code> is optional</div>
     </div>
 
     <!-- Input -->
     <div class="input-section">
       <div class="input-label-row">
-        <label for="excelInput">Excel Formula Input</label>
+        <label for="excelInput">Expression Input</label>
         <span id="charCounter">0 chars</span>
       </div>
-      <textarea id="excelInput" placeholder="Example: =IF(AND(A > 1, B &lt; 5), ROUNDUP(C, 2), 0)"></textarea>
+      <textarea id="excelInput" placeholder="Type using standard functions, e.g.: IF(AND(A > 1, B < 5), MIN(C, 100), 0)"></textarea>
 
       <!-- Example chips -->
       <div class="example-chips">
         <span>Try:</span>
-        <button class="chip" data-formula="=IF(A > 10, 100, 0)">=IF(A &gt; 10, 100, 0)</button>
-        <button class="chip" data-formula="=MIN(A, MAX(B, C))">=MIN(A, MAX(B, C))</button>
-        <button class="chip" data-formula="=IF(AND(A > 1, B < 5), ROUNDUP(C, 5), 0)">=IF(AND(A &gt; 1, B &lt; 5), ROUNDUP(C, 5), 0)</button>
-        <button class="chip" data-formula="=IF(OR(A == 0, B == 0), 0, MAX(A, B))">=IF(OR(A == 0, B == 0), 0, MAX(A, B))</button>
+        <button class="chip" data-formula="IF(A > 10, 100, 0)">IF(A &gt; 10, 100, 0)</button>
+        <button class="chip" data-formula="MIN(A, MAX(B, C))">MIN(A, MAX(B, C))</button>
+        <button class="chip" data-formula="IF(AND(A > 1, B < 5), ROUNDUP(C, 5), 0)">IF(AND…) + ROUNDUP</button>
+        <button class="chip" data-formula="IF(OR(A == 0, B == 0), 0, MAX(A, B))">IF(OR…) + MAX</button>
+        <button class="chip" data-formula="ROUND(MIN(A, MAX(B, 0)), 10)">ROUND + MIN + MAX</button>
       </div>
 
       <div class="button-row">
@@ -944,14 +945,14 @@
     </div>
 
     <!-- Result -->
-    <h2>Result</h2>
+    <h2>Ternary Output</h2>
     <div id="validationBadge"></div>
 
     <div class="output-row">
       <!-- Pseudocode pane -->
       <div class="output-pane">
         <h3>
-          Converted Pseudocode
+          Ternary Expression
           <button id="copyBtn" title="Copy output">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -966,7 +967,7 @@
 
       <!-- Explanation pane -->
       <div class="output-pane">
-        <h3>Explanation</h3>
+        <h3>Decision Breakdown</h3>
         <div id="explanation" style="min-height: 80px;">No conversion yet.</div>
       </div>
     </div>
@@ -974,8 +975,8 @@
     <!-- ═══ Pseudocode Explainer (optional) ═══════════════════════════════ -->
     <div class="explainer-toggle-bar" id="explainerToggleBar">
       <span class="toggle-icon">&#9654;</span>
-      <span class="toggle-label">Pseudocode Explainer</span>
-      <span class="toggle-hint">Paste pseudocode &amp; get a plain-English breakdown</span>
+      <span class="toggle-label">Reverse: Ternary → Readable</span>
+      <span class="toggle-hint">Paste existing ternary code &amp; get a plain-English breakdown</span>
       <label class="toggle-switch" onclick="event.stopPropagation()">
         <input type="checkbox" id="explainerToggle" />
         <span class="toggle-slider"></span>
@@ -986,10 +987,10 @@
       <!-- Explainer input -->
       <div class="explainer-input-section">
         <div class="input-label-row">
-          <label for="explainerInput">Paste Pseudocode</label>
+          <label for="explainerInput">Paste Ternary Expression</label>
           <span id="explainerCharCounter">0 chars</span>
         </div>
-        <textarea id="explainerInput" placeholder="Paste ternary pseudocode, e.g.: ($a > 10) ? (100) : (0)"></textarea>
+        <textarea id="explainerInput" placeholder="Paste ternary expression, e.g.: ($a > 10) ? (100) : (0)"></textarea>
 
         <div class="explainer-chips">
           <span>Examples:</span>
@@ -1008,7 +1009,7 @@
       <div class="explainer-tabs">
         <button class="explainer-tab active" data-tab="tab-summary">Plain English</button>
         <button class="explainer-tab" data-tab="tab-tables">Tables</button>
-        <button class="explainer-tab" data-tab="tab-excel">Excel Equivalent</button>
+        <button class="explainer-tab" data-tab="tab-excel">Standard Form</button>
         <button class="explainer-tab" data-tab="tab-tryit">Try It</button>
       </div>
 
@@ -1016,20 +1017,20 @@
       <div class="explainer-tab-content active" id="tab-summary">
         <div id="structureBox"></div>
         <div id="patternBadges" class="pattern-list"></div>
-        <div class="explain-summary" id="explainerSummary">Enter pseudocode above and click <strong>Explain</strong>.</div>
+        <div class="explain-summary" id="explainerSummary">Enter a ternary expression above and click <strong>Explain</strong>.</div>
       </div>
 
       <!-- Tab: Tables -->
       <div class="explainer-tab-content" id="tab-tables">
         <div id="tablesContainer">
-          <p class="no-tables-msg">No lookup tables detected. Explain some pseudocode first.</p>
+          <p class="no-tables-msg">No lookup tables detected. Explain a ternary expression first.</p>
         </div>
       </div>
 
-      <!-- Tab: Excel Equivalent -->
+      <!-- Tab: Standard Functions -->
       <div class="explainer-tab-content" id="tab-excel">
         <div class="excel-formula-box" id="explainerExcel">
-          <span class="excel-formula-label">Reconstructed Excel Formula</span>
+          <span class="excel-formula-label">Reconstructed Standard Expression</span>
           <span id="excelFormulaText">—</span>
         </div>
       </div>

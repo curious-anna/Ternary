@@ -209,7 +209,7 @@ function showValidationBadge(pseudocode) {
 async function convertFormula() {
   const input = inputEl.value.trim();
   if (!input) {
-    resultEl.textContent = 'Please enter an Excel-style expression.';
+    resultEl.textContent = 'Please enter an expression.';
     resultEl.className = 'code-output';
     explanationEl.innerHTML = '';
     validationEl.innerHTML = '';
@@ -375,7 +375,7 @@ document.querySelectorAll('.explainer-tab').forEach(tab => {
 async function explainPseudocode() {
   const input = explainerInput.value.trim();
   if (!input) {
-    explainerSummary.innerHTML = 'Please paste some pseudocode above.';
+    explainerSummary.innerHTML = 'Please paste a ternary expression above.';
     excelFormulaText.textContent = '—';
     varGrid.innerHTML = '';
     traceOutput.innerHTML = 'Waiting for variable values…';
@@ -477,7 +477,7 @@ function renderExplanation(data) {
       });
     });
   } else {
-    tablesContainer.innerHTML = '<p class="no-tables-msg">No lookup tables detected in this pseudocode.</p>';
+    tablesContainer.innerHTML = '<p class="no-tables-msg">No lookup tables detected in this expression.</p>';
   }
 
   // ── Excel tab ─────────────────────────────────────────────────────────
@@ -663,7 +663,7 @@ document.querySelectorAll('.explainer-chip').forEach(chip => {
 document.getElementById('explainerClearBtn').addEventListener('click', () => {
   explainerInput.value = '';
   explainerCharCount.textContent = '0 chars';
-  explainerSummary.innerHTML = 'Enter pseudocode above and click <strong>Explain</strong>.';
+  explainerSummary.innerHTML = 'Enter a ternary expression above and click <strong>Explain</strong>.';
   excelFormulaText.textContent = '—';
   varGrid.innerHTML = '';
   traceOutput.innerHTML = 'Waiting for variable values…';
@@ -672,7 +672,7 @@ document.getElementById('explainerClearBtn').addEventListener('click', () => {
   currentPseudocode = '';
   patternBadges.innerHTML = '';
   structureBox.innerHTML = '';
-  tablesContainer.innerHTML = '<p class="no-tables-msg">No lookup tables detected. Explain some pseudocode first.</p>';
+  tablesContainer.innerHTML = '<p class="no-tables-msg">No lookup tables detected. Explain a ternary expression first.</p>';
 });
 
 // Keyboard shortcut for explain
