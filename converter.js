@@ -104,6 +104,12 @@ function isWrappedWithParentheses(text) {
   return depth === 0;
 }
 
+function wrapForBinaryOperand(expr) {
+  const trimmed = expr.trim();
+  if (trimmed === '') return '()';
+  return isWrappedWithParentheses(trimmed) ? trimmed : `(${trimmed})`;
+}
+
 function parseTernaryStructure(code) {
   code = code.trim();
   // Strip fully wrapping outer parens before scanning for depth-0 ternary operators
@@ -288,9 +294,11 @@ function toPseudocode(rawInput) {
         if (step === '0' || step === '0.0') {
           throw new Error('ROUND: step cannot be zero');
         }
-        const modExpr = `(${value} % ${step})`;
-        const baseExpr = `(${value} - ${modExpr})`;
-        return `(${modExpr} < (${step} / 2)) ? (${baseExpr}) : ((${baseExpr}) + ${step})`;
+        const valueOperand = wrapForBinaryOperand(value);
+        const stepOperand = wrapForBinaryOperand(step);
+        const modExpr = `(${valueOperand} % ${stepOperand})`;
+        const baseExpr = `(${valueOperand} - ${modExpr})`;
+        return `(${modExpr} < (${stepOperand} / 2)) ? (${baseExpr}) : ((${baseExpr}) + ${stepOperand})`;
       }
 
       if (name === 'ROUNDUP' && args.length >= 1) {
@@ -302,8 +310,10 @@ function toPseudocode(rawInput) {
         if (step === '0' || step === '0.0') {
           throw new Error('ROUNDUP: step cannot be zero');
         }
-        const modExpr = `(${value} % ${step})`;
-        return `((${value}) - (${modExpr}) + ((${modExpr}) ? ${step} : 0))`;
+        const valueOperand = wrapForBinaryOperand(value);
+        const stepOperand = wrapForBinaryOperand(step);
+        const modExpr = `(${valueOperand} % ${stepOperand})`;
+        return `((${valueOperand}) - (${modExpr}) + ((${modExpr}) ? ${stepOperand} : 0))`;
       }
 
       if (name === 'ROUNDDOWN' && args.length >= 1) {
@@ -315,8 +325,10 @@ function toPseudocode(rawInput) {
         if (step === '0' || step === '0.0') {
           throw new Error('ROUNDDOWN: step cannot be zero');
         }
-        const modExpr = `(${value} % ${step})`;
-        return `((${value}) - (${modExpr}))`;
+        const valueOperand = wrapForBinaryOperand(value);
+        const stepOperand = wrapForBinaryOperand(step);
+        const modExpr = `(${valueOperand} % ${stepOperand})`;
+        return `((${valueOperand}) - (${modExpr}))`;
       }
 
       throw new Error(`Unsupported function '${name}' - only IF, MIN, MAX, AND, OR, ROUND, ROUNDUP, ROUNDDOWN are allowed.`);

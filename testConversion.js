@@ -43,11 +43,17 @@ assert('MAX expr', 'MAX(ACT + 700, 300)', ['$ACT + 700 > 300'], []);
 assert('var prefix', '$ACT + 10', ['$ACT + 10'], []);
 
 // ROUND family: second arg is step/increment.
-assert('ROUND default step', 'ROUND(3.2)', ['3.2 % 1'], []);
-assert('ROUND default step2', 'ROUND(3.7)', ['3.7 % 1'], []);
-assert('ROUND step 10', '=ROUND(act, 10)', ['$act % 10'], []);
-assert('ROUNDUP step 5', '=ROUNDUP(act, 5)', ['$act % 5'], []);
-assert('ROUNDDOWN step 100', '=ROUNDDOWN(act, 100)', ['$act % 100'], []);
+assert('ROUND default step', 'ROUND(3.2)', ['% (1)', '3.2'], []);
+assert('ROUND default step2', 'ROUND(3.7)', ['% (1)', '3.7'], []);
+assert('ROUND step 10', '=ROUND(act, 10)', ['% (10)', '$act'], []);
+assert('ROUNDUP step 5', '=ROUNDUP(act, 5)', ['% (5)', '$act'], []);
+assert('ROUNDDOWN step 100', '=ROUNDDOWN(act, 100)', ['% (100)', '$act'], []);
+assert(
+  'ROUNDDOWN ternary operand precedence',
+  '=ROUNDDOWN(($sai <= 0 ? 10 : 20), 100)',
+  ['? 10 : 20) % (100)'],
+  [': 20 % 100']
+);
 
 // AND / OR function support.
 assert(

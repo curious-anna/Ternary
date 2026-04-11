@@ -1,6 +1,7 @@
 const resultEl      = document.getElementById('result');
 const explanationEl = document.getElementById('explanation');
 const inputEl       = document.getElementById('excelInput');
+const inputMirrorEl = document.getElementById('excelInputMirror');
 const charCounterEl = document.getElementById('charCounter');
 const validationEl  = document.getElementById('validationBadge');
 const copyToastEl   = document.getElementById('copyToast');
@@ -10,6 +11,84 @@ const copyToastEl   = document.getElementById('copyToast');
 function escapeHtml(text) {
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
   return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+const OPEN_BRACKETS = new Set(['(', '[', '{']);
+const CLOSE_BRACKETS = new Set([')', ']', '}']);
+const BRACKET_DEPTH_COLORS = 6;
+
+function renderBracketColoredText(text) {
+  let html = '';
+  let depth = 0;
+
+  for (const ch of text) {
+    if (OPEN_BRACKETS.has(ch)) {
+      html += `<span class="token-bracket-pair bracket-depth-${depth % BRACKET_DEPTH_COLORS}">${escapeHtml(ch)}</span>`;
+      depth++;
+      continue;
+    }
+
+    if (CLOSE_BRACKETS.has(ch)) {
+      depth = Math.max(depth - 1, 0);
+      html += `<span class="token-bracket-pair bracket-depth-${depth % BRACKET_DEPTH_COLORS}">${escapeHtml(ch)}</span>`;
+      continue;
+    }
+
+    html += escapeHtml(ch);
+  }
+
+  return html;
+}
+
+function applyBracketPairColorizationToHtml(html) {
+  let output = '';
+  let depth = 0;
+  let inTag = false;
+
+  for (const ch of html) {
+    if (ch === '<') {
+      inTag = true;
+      output += ch;
+      continue;
+    }
+
+    if (inTag) {
+      output += ch;
+      if (ch === '>') inTag = false;
+      continue;
+    }
+
+    if (OPEN_BRACKETS.has(ch)) {
+      output += `<span class="token-bracket-pair bracket-depth-${depth % BRACKET_DEPTH_COLORS}">${ch}</span>`;
+      depth++;
+      continue;
+    }
+
+    if (CLOSE_BRACKETS.has(ch)) {
+      depth = Math.max(depth - 1, 0);
+      output += `<span class="token-bracket-pair bracket-depth-${depth % BRACKET_DEPTH_COLORS}">${ch}</span>`;
+      continue;
+    }
+
+    output += ch;
+  }
+
+  return output;
+}
+
+function setCodeOutput(text, isError = false) {
+  resultEl.innerHTML = renderBracketColoredText(text);
+  resultEl.className = isError ? 'code-output error' : 'code-output';
+}
+
+function syncEditorMirror(textareaEl, mirrorEl) {
+  if (!textareaEl || !mirrorEl) return;
+  const shell = textareaEl.closest('.editor-shell');
+  const value = textareaEl.value;
+  mirrorEl.innerHTML = value ? renderBracketColoredText(value) : '';
+  if (shell) shell.classList.toggle('has-content', value.length > 0);
+  mirrorEl.scrollTop = textareaEl.scrollTop;
+  mirrorEl.scrollLeft = textareaEl.scrollLeft;
 }
 
 // ── Variable Color System ─────────────────────────────────────────────────────
@@ -209,8 +288,7 @@ function showValidationBadge(pseudocode) {
 async function convertFormula() {
   const input = inputEl.value.trim();
   if (!input) {
-    resultEl.textContent = 'Please enter an expression.';
-    resultEl.className = 'code-output';
+    setCodeOutput('Please enter an expression.');
     explanationEl.innerHTML = '';
     validationEl.innerHTML = '';
     return;
@@ -226,15 +304,13 @@ async function convertFormula() {
     const json = await resp.json();
 
     if (!resp.ok) {
-      resultEl.textContent = 'Error: ' + (json.error || 'unknown');
-      resultEl.className = 'code-output error';
+      setCodeOutput('Error: ' + (json.error || 'unknown'), true);
       explanationEl.innerHTML = '';
       validationEl.innerHTML = '';
       return;
     }
 
-    resultEl.textContent = json.pseudocode;
-    resultEl.className = 'code-output';
+    setCodeOutput(json.pseudocode);
     showValidationBadge(json.pseudocode);
 
     const formatted = typeof json.explanation === 'string' ? json.explanation : '';
@@ -242,15 +318,14 @@ async function convertFormula() {
     assignDefinitionColors(formatted);
     const legend = buildVariableLegend();
     const defLegend = buildDefinitionLegend();
-    explanationEl.innerHTML = `${legend}${defLegend}<div class="explain-highlighted-code">${highlightExplanation(formatted)}</div>`;
+    explanationEl.innerHTML = `${legend}${defLegend}<div class="explain-highlighted-code">${applyBracketPairColorizationToHtml(highlightExplanation(formatted))}</div>`;
 
     // Wire up variable and definition hover highlighting
     wireVariableInteractivity();
     wireDefinitionInteractivity();
 
   } catch (err) {
-    resultEl.textContent = 'Network error: ' + err.message;
-    resultEl.className = 'code-output error';
+    setCodeOutput('Network error: ' + err.message, true);
     explanationEl.innerHTML = '';
     validationEl.innerHTML = '';
   }
@@ -285,9 +360,12 @@ function updateCharCounter() {
 let debounceTimer = null;
 inputEl.addEventListener('input', () => {
   updateCharCounter();
+  syncEditorMirror(inputEl, inputMirrorEl);
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(convertFormula, 300);
 });
+
+inputEl.addEventListener('scroll', () => syncEditorMirror(inputEl, inputMirrorEl));
 
 // ── Example chips ─────────────────────────────────────────────────────────────
 
@@ -295,6 +373,7 @@ document.querySelectorAll('.chip').forEach(chip => {
   chip.addEventListener('click', () => {
     inputEl.value = chip.dataset.formula;
     updateCharCounter();
+    syncEditorMirror(inputEl, inputMirrorEl);
     convertFormula();
   });
 });
@@ -304,8 +383,8 @@ document.querySelectorAll('.chip').forEach(chip => {
 document.getElementById('clearBtn').addEventListener('click', () => {
   inputEl.value = '';
   updateCharCounter();
-  resultEl.textContent = 'Awaiting input…';
-  resultEl.className = 'code-output';
+  syncEditorMirror(inputEl, inputMirrorEl);
+  setCodeOutput('Awaiting input…');
   explanationEl.innerHTML = 'No conversion yet.';
   validationEl.innerHTML = '';
   copyToastEl.classList.add('hidden');
@@ -332,6 +411,7 @@ const explainerToggleBar = document.getElementById('explainerToggleBar');
 const explainerToggle    = document.getElementById('explainerToggle');
 const explainerPanel     = document.getElementById('explainerPanel');
 const explainerInput     = document.getElementById('explainerInput');
+const explainerMirrorEl  = document.getElementById('explainerInputMirror');
 const explainerCharCount = document.getElementById('explainerCharCounter');
 const explainerSummary   = document.getElementById('explainerSummary');
 const excelFormulaText   = document.getElementById('excelFormulaText');
@@ -448,7 +528,7 @@ function renderExplanation(data) {
   assignDefinitionColors(summaryText);
   const legend = buildVariableLegend();
   const defLegend = buildDefinitionLegend();
-  const summaryHtml = `${legend}${defLegend}<div class="explain-highlighted-code">${highlightExplanation(summaryText)}</div>`;
+  const summaryHtml = `${legend}${defLegend}<div class="explain-highlighted-code">${applyBracketPairColorizationToHtml(highlightExplanation(summaryText))}</div>`;
   explainerSummary.innerHTML = summaryHtml;
   wireVariableInteractivity();
   wireDefinitionInteractivity();
@@ -481,7 +561,7 @@ function renderExplanation(data) {
   }
 
   // ── Excel tab ─────────────────────────────────────────────────────────
-  excelFormulaText.textContent = data.excelFormula || '—';
+  excelFormulaText.innerHTML = renderBracketColoredText(data.excelFormula || '—');
 
   // ── Try-It tab ────────────────────────────────────────────────────────
   varGrid.innerHTML = '';
@@ -648,13 +728,17 @@ runTraceBtn.addEventListener('click', runTrace);
 // Char counter
 explainerInput.addEventListener('input', () => {
   explainerCharCount.textContent = explainerInput.value.length + ' chars';
+  syncEditorMirror(explainerInput, explainerMirrorEl);
 });
+
+explainerInput.addEventListener('scroll', () => syncEditorMirror(explainerInput, explainerMirrorEl));
 
 // Example chips
 document.querySelectorAll('.explainer-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     explainerInput.value = chip.dataset.pseudo;
     explainerCharCount.textContent = explainerInput.value.length + ' chars';
+    syncEditorMirror(explainerInput, explainerMirrorEl);
     explainPseudocode();
   });
 });
@@ -663,6 +747,7 @@ document.querySelectorAll('.explainer-chip').forEach(chip => {
 document.getElementById('explainerClearBtn').addEventListener('click', () => {
   explainerInput.value = '';
   explainerCharCount.textContent = '0 chars';
+  syncEditorMirror(explainerInput, explainerMirrorEl);
   explainerSummary.innerHTML = 'Enter a ternary expression above and click <strong>Explain</strong>.';
   excelFormulaText.textContent = '—';
   varGrid.innerHTML = '';
@@ -784,3 +869,6 @@ function toggleDefPin(defName) {
     highlightDef(defName, true);
   }
 }
+
+syncEditorMirror(inputEl, inputMirrorEl);
+syncEditorMirror(explainerInput, explainerMirrorEl);

@@ -7,40 +7,84 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; }
 
+    :root {
+      --bg: #f7f1e7;
+      --bg-accent: #efe4d6;
+      --panel: rgba(255, 251, 245, 0.9);
+      --panel-strong: rgba(255, 255, 255, 0.96);
+      --line: rgba(84, 63, 43, 0.12);
+      --text: #20303a;
+      --muted: #655f58;
+      --accent: #0f766e;
+      --accent-strong: #115e59;
+      --accent-soft: rgba(15, 118, 110, 0.1);
+      --warm: #b96a30;
+      --shadow: 0 18px 40px rgba(62, 42, 19, 0.08);
+    }
+
     body {
-      font-family: Inter, 'Segoe UI', sans-serif;
-      margin: 24px;
-      background: #eef2ff;
-      color: #1e293b;
+      font-family: Aptos, 'Segoe UI', sans-serif;
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.1), transparent 28%),
+        radial-gradient(circle at top right, rgba(185, 106, 48, 0.1), transparent 22%),
+        linear-gradient(180deg, var(--bg) 0%, var(--bg-accent) 100%);
+      color: var(--text);
     }
 
     .container {
-      max-width: 960px;
-      margin: 0 auto;
-      background: white;
-      padding: 28px;
-      border-radius: 14px;
-      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+      max-width: 1040px;
+      margin: 20px auto 32px;
+      padding: 0 14px 0;
     }
 
     /* ── Header ─────────────────────────────────────────────────────────── */
-    .header { margin-bottom: 20px; }
-    .header h1 { margin: 0 0 4px; font-size: 28px; }
-    .tagline { margin: 0 0 10px; color: #475569; font-size: 15px; }
+    .header {
+      margin-bottom: 16px;
+      padding: 28px;
+      border-radius: 28px;
+      background:
+        radial-gradient(circle at top right, rgba(255, 255, 255, 0.7), transparent 30%),
+        linear-gradient(135deg, rgba(255, 251, 245, 0.95) 0%, rgba(245, 236, 225, 0.94) 100%);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+    .header h1 {
+      margin: 0 0 8px;
+      font-size: clamp(2rem, 4vw, 3.2rem);
+      line-height: 1.04;
+      font-family: Georgia, 'Times New Roman', serif;
+      max-width: 12ch;
+    }
+    .tagline {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.65;
+      max-width: 60ch;
+    }
     .operator-badge {
       display: inline-block;
-      background: #e0e7ff;
-      color: #3730a3;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
       font-size: 12px;
       font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
-      padding: 4px 10px;
+      padding: 7px 12px;
       border-radius: 9999px;
       font-weight: 600;
       letter-spacing: 0.02em;
+      border: 1px solid rgba(15, 118, 110, 0.14);
     }
 
     /* ── Input section ──────────────────────────────────────────────────── */
-    .input-section { margin-bottom: 16px; }
+    .input-section {
+      margin-bottom: 16px;
+      padding: 22px;
+      border-radius: 24px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
 
     .input-label-row {
       display: flex;
@@ -51,25 +95,90 @@
     .input-label-row label {
       font-size: 14px;
       font-weight: 600;
-      color: #0f172a;
+      color: var(--text);
     }
-    #charCounter { font-size: 12px; color: #94a3b8; }
+    #charCounter { font-size: 12px; color: var(--muted); }
 
     textarea {
       width: 100%;
-      min-height: 100px;
+      min-height: 120px;
       font-size: 15px;
-      padding: 12px 14px;
-      border-radius: 8px;
-      border: 1.5px solid #cbd5e1;
-      background: #f8fafc;
+      padding: 14px 16px;
+      border-radius: 16px;
+      border: 1px solid rgba(84, 63, 43, 0.14);
+      background: rgba(255, 255, 255, 0.9);
       transition: border-color 0.2s, box-shadow 0.2s;
       resize: vertical;
       outline: none;
     }
     textarea:focus {
-      border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+      border-color: rgba(15, 118, 110, 0.34);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.08);
+    }
+
+    .editor-shell {
+      position: relative;
+      border: 1px solid rgba(84, 63, 43, 0.14);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.9);
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .editor-shell:focus-within {
+      border-color: rgba(15, 118, 110, 0.34);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.08);
+    }
+
+    .editor-mirror,
+    textarea.editor-input {
+      margin: 0;
+      min-height: 120px;
+      padding: 14px 16px;
+      font-size: 15px;
+      line-height: 1.65;
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .editor-mirror {
+      position: absolute;
+      inset: 0;
+      color: #dbe6f6;
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      overflow: hidden;
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    textarea.editor-input {
+      position: relative;
+      z-index: 1;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      color: var(--text);
+    }
+
+    .editor-shell.has-content textarea.editor-input {
+      color: transparent;
+      caret-color: #f8fafc;
+    }
+
+    .editor-shell.has-content .editor-mirror {
+      opacity: 1;
+    }
+
+    textarea.editor-input:focus {
+      border: none;
+      box-shadow: none;
+    }
+
+    .editor-shell.has-content textarea.editor-input::selection {
+      background: rgba(96, 165, 250, 0.24);
+      color: transparent;
     }
 
     /* ── Example chips ───────────────────────────────────────────────────── */
@@ -80,56 +189,58 @@
       align-items: center;
       margin: 10px 0 14px;
       font-size: 13px;
-      color: #64748b;
+      color: var(--muted);
     }
     .chip {
-      padding: 4px 10px;
+      padding: 6px 11px;
       font-size: 12px;
       font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
-      background: #f1f5f9;
-      color: #1e40af;
-      border: 1px solid #c7d2fe;
+      background: rgba(255, 255, 255, 0.88);
+      color: var(--text);
+      border: 1px solid rgba(84, 63, 43, 0.12);
       border-radius: 9999px;
       cursor: pointer;
       transition: background 0.15s, border-color 0.15s;
+      box-shadow: 0 8px 16px rgba(62, 42, 19, 0.04);
     }
-    .chip:hover { background: #e0e7ff; border-color: #818cf8; }
+    .chip:hover { background: white; border-color: rgba(15, 118, 110, 0.24); }
 
     /* ── Buttons ─────────────────────────────────────────────────────────── */
-    .button-row { display: flex; gap: 10px; }
+    .button-row { display: flex; gap: 10px; flex-wrap: wrap; }
 
     button {
-      padding: 10px 18px;
-      font-size: 15px;
+      padding: 10px 16px;
+      font-size: 14px;
       border: none;
-      border-radius: 8px;
+      border-radius: 999px;
       cursor: pointer;
-      transition: background 0.2s ease, opacity 0.2s;
+      transition: background 0.2s ease, opacity 0.2s, transform 0.2s ease;
+      font-weight: 700;
     }
-    #convertBtn { background: #2563eb; color: white; }
-    #convertBtn:hover { background: #1d4ed8; }
+    button:hover { transform: translateY(-1px); }
+    #convertBtn { background: linear-gradient(135deg, #0f766e 0%, #115e59 100%); color: white; box-shadow: 0 10px 22px rgba(15, 118, 110, 0.18); }
+    #convertBtn:hover { background: linear-gradient(135deg, #0d6a63 0%, #0f5753 100%); }
 
-    .btn-secondary { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
-    .btn-secondary:hover { background: #e2e8f0; }
+    .btn-secondary { background: rgba(255, 255, 255, 0.88); color: var(--text); border: 1px solid rgba(84, 63, 43, 0.12); }
+    .btn-secondary:hover { background: white; }
 
     /* ── Output layout ───────────────────────────────────────────────────── */
-    h2 { margin: 20px 0 10px; font-size: 22px; color: #0f172a; }
-    h3 { margin-top: 0; font-size: 17px; color: #0f172a; display: flex; align-items: center; gap: 8px; }
+    h2 { margin: 18px 0 10px; font-size: 22px; color: var(--text); font-family: Georgia, 'Times New Roman', serif; }
+    h3 { margin-top: 0; font-size: 17px; color: var(--text); display: flex; align-items: center; gap: 8px; font-family: Georgia, 'Times New Roman', serif; }
 
     .output-row {
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 16px;
-      flex-wrap: wrap;
       margin-top: 10px;
     }
     .output-pane {
-      flex: 1;
-      min-width: 280px;
-      border: 1px solid #cbd5e1;
-      border-radius: 10px;
-      padding: 14px;
-      background: #ffffff;
-      box-shadow: inset 0 0 0 1px #e2e8f0;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 18px;
+      background: var(--panel-strong);
+      box-shadow: var(--shadow);
     }
 
     /* ── Pseudocode output: dark code theme ─────────────────────────────── */
@@ -141,7 +252,7 @@
       line-height: 1.6;
       padding: 20px;
       border-radius: 10px;
-      border-left: 5px solid #3b82f6;
+      border-left: 5px solid #2dd4bf;
       white-space: pre-wrap;
       overflow-wrap: break-word;
       overflow-x: auto;
@@ -156,24 +267,24 @@
 
     /* ── Copy button ─────────────────────────────────────────────────────── */
     #copyBtn {
-      padding: 5px 7px;
-      background: transparent;
-      color: #475569;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
+      padding: 6px 8px;
+      background: rgba(255, 255, 255, 0.9);
+      color: var(--text);
+      border: 1px solid rgba(84, 63, 43, 0.12);
+      border-radius: 999px;
       font-size: 0;
       line-height: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
     }
-    #copyBtn:hover { background: #e0e7ff; border-color: #818cf8; color: #3730a3; }
+    #copyBtn:hover { background: white; border-color: rgba(15, 118, 110, 0.24); color: var(--accent-strong); }
     #copyBtn svg { width: 16px; height: 16px; }
 
     /* ── Copy toast ──────────────────────────────────────────────────────── */
     .copy-toast {
       display: inline-block;
-      background: #059669;
+      background: rgba(16, 185, 129, 0.95);
       color: white;
       padding: 4px 12px;
       border-radius: 6px;
@@ -187,7 +298,7 @@
     #validationBadge { margin-bottom: 10px; min-height: 24px; }
     .badge-valid {
       display: inline-block;
-      background: #dcfce7;
+      background: rgba(220, 252, 231, 0.96);
       color: #166534;
       padding: 3px 12px;
       border-radius: 9999px;
@@ -196,7 +307,7 @@
     }
     .badge-invalid {
       display: inline-block;
-      background: #fee2e2;
+      background: rgba(254, 226, 226, 0.96);
       color: #991b1b;
       padding: 3px 12px;
       border-radius: 9999px;
@@ -213,7 +324,7 @@
       line-height: 1.6;
       padding: 20px;
       border-radius: 10px;
-      border-left: 5px solid #3b82f6;
+      border-left: 5px solid #2dd4bf;
       white-space: pre;
       word-break: normal;
       overflow-x: auto;
@@ -232,6 +343,13 @@
     .token-variable { color: #7dd3fc; font-weight: 600; }
     .token-number { color: #fbbf24; font-weight: 500; }
     .token-bracket { color: #94a3b8; font-weight: 600; }
+    .token-bracket-pair { font-weight: 700; }
+    .bracket-depth-0 { color: #ffd166; }
+    .bracket-depth-1 { color: #4ecdc4; }
+    .bracket-depth-2 { color: #ff6b6b; }
+    .bracket-depth-3 { color: #8ab4ff; }
+    .bracket-depth-4 { color: #c792ea; }
+    .bracket-depth-5 { color: #7ee787; }
     .token-unknown { color: #cbd5e1; }
     .token-depth { color: #64748b; }
     .token-label-cond { color: #f59e0b; }
@@ -464,7 +582,7 @@
 
     /* ── Mobile: stack panes ─────────────────────────────────────────────── */
     @media (max-width: 640px) {
-      .output-row { flex-direction: column; }
+      .output-row { grid-template-columns: 1fr; }
       .output-pane { min-width: unset; }
     }
 
@@ -474,15 +592,16 @@
       align-items: center;
       gap: 12px;
       margin-top: 28px;
-      padding: 14px 18px;
-      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-      border: 1.5px solid #7dd3fc;
-      border-radius: 10px;
+      padding: 16px 18px;
+      background: linear-gradient(135deg, rgba(255, 251, 245, 0.95) 0%, rgba(244, 236, 226, 0.94) 100%);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
       cursor: pointer;
       user-select: none;
       transition: background 0.2s, border-color 0.2s;
     }
-    .explainer-toggle-bar:hover { background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); }
+    .explainer-toggle-bar:hover { background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(244, 236, 226, 0.98) 100%); }
     .explainer-toggle-bar .toggle-icon {
       font-size: 20px;
       transition: transform 0.3s;
@@ -491,11 +610,11 @@
     .explainer-toggle-bar .toggle-label {
       font-size: 15px;
       font-weight: 600;
-      color: #0c4a6e;
+      color: var(--text);
     }
     .explainer-toggle-bar .toggle-hint {
       font-size: 12px;
-      color: #0369a1;
+      color: var(--muted);
       margin-left: auto;
     }
 
@@ -509,7 +628,7 @@
     .toggle-slider {
       position: absolute;
       inset: 0;
-      background: #cbd5e1;
+      background: #d7ddd7;
       border-radius: 12px;
       transition: background 0.2s;
       cursor: pointer;
@@ -523,13 +642,13 @@
       border-radius: 50%;
       transition: transform 0.2s;
     }
-    .toggle-switch input:checked + .toggle-slider { background: #2563eb; }
+    .toggle-switch input:checked + .toggle-slider { background: var(--accent); }
     .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
 
     /* ── Explainer panel ─────────────────────────────────────────────────── */
     .explainer-panel {
       display: none;
-      margin-top: 16px;
+      margin-top: 14px;
       animation: slideDown 0.3s ease;
     }
     .explainer-panel.visible { display: block; }
@@ -539,14 +658,21 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
-    .explainer-input-section { margin-bottom: 16px; }
+    .explainer-input-section {
+      margin-bottom: 16px;
+      padding: 22px;
+      border-radius: 22px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
     .explainer-input-section textarea {
-      border-color: #7dd3fc;
-      background: #f0f9ff;
+      border-color: rgba(15, 118, 110, 0.14);
+      background: rgba(255, 255, 255, 0.92);
     }
     .explainer-input-section textarea:focus {
-      border-color: #0ea5e9;
-      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+      border-color: rgba(15, 118, 110, 0.34);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.08);
     }
 
     .explainer-chips {
@@ -556,44 +682,47 @@
       align-items: center;
       margin: 10px 0 14px;
       font-size: 13px;
-      color: #64748b;
+      color: var(--muted);
     }
     .explainer-chip {
-      padding: 4px 10px;
+      padding: 6px 11px;
       font-size: 11px;
       font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
-      background: #f0f9ff;
-      color: #0369a1;
-      border: 1px solid #7dd3fc;
+      background: rgba(255, 255, 255, 0.9);
+      color: var(--text);
+      border: 1px solid rgba(84, 63, 43, 0.12);
       border-radius: 9999px;
       cursor: pointer;
       transition: background 0.15s;
     }
-    .explainer-chip:hover { background: #e0f2fe; }
+    .explainer-chip:hover { background: white; }
 
     /* ── Explainer output tabs ───────────────────────────────────────────── */
     .explainer-tabs {
       display: flex;
-      gap: 0;
-      border-bottom: 2px solid #e2e8f0;
+      gap: 8px;
+      border-bottom: none;
       margin-bottom: 16px;
+      flex-wrap: wrap;
     }
     .explainer-tab {
-      padding: 8px 18px;
+      padding: 8px 14px;
       font-size: 13px;
       font-weight: 600;
-      color: #64748b;
-      background: transparent;
-      border: none;
-      border-bottom: 3px solid transparent;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(84, 63, 43, 0.12);
+      border-bottom: none;
+      border-radius: 999px;
       cursor: pointer;
-      transition: color 0.2s, border-color 0.2s;
-      margin-bottom: -2px;
+      transition: color 0.2s, border-color 0.2s, background 0.2s;
+      margin-bottom: 0;
     }
-    .explainer-tab:hover { color: #0ea5e9; }
+    .explainer-tab:hover { color: var(--text); background: white; }
     .explainer-tab.active {
-      color: #0284c7;
-      border-bottom-color: #0284c7;
+      color: white;
+      border-color: transparent;
+      background: linear-gradient(135deg, #0f766e 0%, #115e59 100%);
     }
 
     .explainer-tab-content { display: none; }
@@ -601,13 +730,13 @@
 
     /* ── Summary panel ───────────────────────────────────────────────────── */
     .explain-summary {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+      border-radius: 18px;
       padding: 18px;
       font-size: 14px;
       line-height: 1.7;
-      color: #334155;
+      color: var(--text);
       white-space: pre-wrap;
     }
     .explain-summary .step-header {
@@ -626,13 +755,13 @@
       margin-bottom: 16px;
     }
     .var-card {
-      background: #f8fafc;
-      border: 1.5px solid #e2e8f0;
-      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(84, 63, 43, 0.12);
+      border-radius: 14px;
       padding: 10px 14px;
       transition: border-color 0.2s;
     }
-    .var-card:focus-within { border-color: #0ea5e9; }
+    .var-card:focus-within { border-color: var(--accent); }
     .var-card label {
       display: block;
       font-size: 12px;
@@ -640,30 +769,30 @@
       font-weight: 600;
       margin-bottom: 4px;
     }
-    .var-card label span { color: #0ea5e9; font-family: monospace; }
+    .var-card label span { color: var(--accent); font-family: monospace; }
     .var-card input {
       width: 100%;
       padding: 6px 8px;
       font-size: 14px;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
+      border: 1px solid rgba(84, 63, 43, 0.14);
+      border-radius: 10px;
       outline: none;
       transition: border-color 0.2s;
     }
-    .var-card input:focus { border-color: #0ea5e9; }
+    .var-card input:focus { border-color: var(--accent); }
 
     .try-btn {
       padding: 8px 20px;
       font-size: 14px;
       font-weight: 600;
-      background: #0ea5e9;
+      background: linear-gradient(135deg, #0f766e 0%, #115e59 100%);
       color: white;
       border: none;
       border-radius: 8px;
       cursor: pointer;
       transition: background 0.2s;
     }
-    .try-btn:hover { background: #0284c7; }
+    .try-btn:hover { background: linear-gradient(135deg, #0d6a63 0%, #0f5753 100%); }
 
     /* ── Trace output ────────────────────────────────────────────────────── */
     .trace-output {
@@ -671,7 +800,7 @@
       padding: 16px;
       background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
       border-radius: 10px;
-      border-left: 5px solid #0ea5e9;
+      border-left: 5px solid #2dd4bf;
       font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
       font-size: 14px;
       line-height: 1.8;
@@ -701,9 +830,9 @@
 
     /* ── Excel formula display ───────────────────────────────────────────── */
     .excel-formula-box {
-      background: #f0fdf4;
-      border: 1.5px solid #86efac;
-      border-radius: 10px;
+      background: rgba(240, 253, 244, 0.92);
+      border: 1px solid rgba(34, 197, 94, 0.18);
+      border-radius: 16px;
       padding: 16px 20px;
       font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
       font-size: 15px;
@@ -712,7 +841,7 @@
     }
     .excel-formula-label {
       display: block;
-      font-family: Inter, 'Segoe UI', sans-serif;
+      font-family: Aptos, 'Segoe UI', sans-serif;
       font-size: 12px;
       font-weight: 600;
       color: #16a34a;
@@ -751,7 +880,7 @@
       border: 1px solid #e2e8f0;
     }
     .lookup-table thead th {
-      background: #f1f5f9;
+      background: #f7f3ec;
       color: #334155;
       font-weight: 700;
       padding: 8px 12px;
@@ -774,7 +903,7 @@
       background: #f8fafc;
     }
     .lookup-table tbody tr:hover {
-      background: #eef2ff;
+      background: #eef5ff;
     }
     .lookup-table .lt-threshold {
       font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
@@ -802,7 +931,7 @@
     .tier-header {
       background: #eef2ff;
       padding: 10px 14px;
-      border-radius: 8px 8px 0 0;
+      border-radius: 12px 12px 0 0;
       border: 1px solid #c7d2fe;
       border-bottom: none;
       font-size: 13px;
@@ -825,7 +954,7 @@
       display: none;
       border: 1px solid #c7d2fe;
       border-top: none;
-      border-radius: 0 0 8px 8px;
+      border-radius: 0 0 12px 12px;
       overflow: hidden;
       margin-bottom: 10px;
     }
@@ -855,7 +984,7 @@
     .structure-box {
       background: #f0f9ff;
       border: 1.5px solid #bae6fd;
-      border-radius: 10px;
+      border-radius: 16px;
       padding: 14px 18px;
       margin-bottom: 16px;
       font-size: 14px;
@@ -901,32 +1030,21 @@
 <body>
   <div class="container">
 
-    <!-- Header -->
     <div class="header">
-      <h1>Ternary Expression Builder</h1>
-      <p class="tagline">Write with standard functions → Get pure ternary output</p>
-      <span class="operator-badge">Output operators: == != &gt; &lt; &gt;= &lt;= ? : + - * / %</span>
+      <h1>Write readable logic. Get strict ternary output.</h1>
+      <p class="tagline">This tool converts spreadsheet-style rules into ternary-only expressions for systems that accept <strong>?:</strong> logic but not higher-level functions. It can also reverse and explain ternary code so you can inspect and test the rule path.</p>
+      <span class="operator-badge">Supported output operators: == != &gt; &lt; &gt;= &lt;= ? : + - * / %</span>
     </div>
 
-    <!-- Info box -->
-    <div class="info-box">
-      <strong>Type expressions using these standard functions — they'll be converted to pure nested ternaries:</strong>
-      <ul style="margin:8px 0 8px 20px; color:#334155; font-size:13px;">
-        <li><code>IF(condition, trueValue, falseValue?)</code> — falseValue defaults to 0</li>
-        <li><code>MIN(a, b, …)</code> &nbsp;/&nbsp; <code>MAX(a, b, …)</code> — converted to comparison ternaries</li>
-        <li><code>AND(a, b, …)</code> &nbsp;/&nbsp; <code>OR(a, b, …)</code> — converted to flag-sum patterns; also supports infix <code>A AND B</code></li>
-        <li><code>ROUND(x, step?)</code> &nbsp;/&nbsp; <code>ROUNDUP(x, step?)</code> &nbsp;/&nbsp; <code>ROUNDDOWN(x, step?)</code> — converted to modulo ternaries (step defaults to 1)</li>
-      </ul>
-      <div style="font-size:12px;color:#475569;">Shorthand: <code>(condition, trueValue, falseValue?)</code> — leading <code>=</code> is optional</div>
-    </div>
-
-    <!-- Input -->
     <div class="input-section">
       <div class="input-label-row">
         <label for="excelInput">Expression Input</label>
         <span id="charCounter">0 chars</span>
       </div>
-      <textarea id="excelInput" placeholder="Type using standard functions, e.g.: IF(AND(A > 1, B < 5), MIN(C, 100), 0)"></textarea>
+      <div class="editor-shell" id="excelEditorShell">
+        <pre class="editor-mirror" id="excelInputMirror" aria-hidden="true"></pre>
+        <textarea class="editor-input" id="excelInput" placeholder="Type using standard functions, e.g.: IF(AND(A > 1, B < 5), MIN(C, 100), 0)"></textarea>
+      </div>
 
       <!-- Example chips -->
       <div class="example-chips">
@@ -944,12 +1062,10 @@
       </div>
     </div>
 
-    <!-- Result -->
     <h2>Ternary Output</h2>
     <div id="validationBadge"></div>
 
     <div class="output-row">
-      <!-- Pseudocode pane -->
       <div class="output-pane">
         <h3>
           Ternary Expression
@@ -965,18 +1081,16 @@
         <div id="copyToast" class="copy-toast hidden">✅ Copied!</div>
       </div>
 
-      <!-- Explanation pane -->
       <div class="output-pane">
         <h3>Decision Breakdown</h3>
         <div id="explanation" style="min-height: 80px;">No conversion yet.</div>
       </div>
     </div>
 
-    <!-- ═══ Pseudocode Explainer (optional) ═══════════════════════════════ -->
     <div class="explainer-toggle-bar" id="explainerToggleBar">
       <span class="toggle-icon">&#9654;</span>
-      <span class="toggle-label">Reverse: Ternary → Readable</span>
-      <span class="toggle-hint">Paste existing ternary code &amp; get a plain-English breakdown</span>
+      <span class="toggle-label">Explain Existing Ternary</span>
+      <span class="toggle-hint">Open the reverse tool to inspect, reconstruct, and test ternary logic</span>
       <label class="toggle-switch" onclick="event.stopPropagation()">
         <input type="checkbox" id="explainerToggle" />
         <span class="toggle-slider"></span>
@@ -984,13 +1098,15 @@
     </div>
 
     <div class="explainer-panel" id="explainerPanel">
-      <!-- Explainer input -->
       <div class="explainer-input-section">
         <div class="input-label-row">
           <label for="explainerInput">Paste Ternary Expression</label>
           <span id="explainerCharCounter">0 chars</span>
         </div>
-        <textarea id="explainerInput" placeholder="Paste ternary expression, e.g.: ($a > 10) ? (100) : (0)"></textarea>
+        <div class="editor-shell" id="explainerEditorShell">
+          <pre class="editor-mirror" id="explainerInputMirror" aria-hidden="true"></pre>
+          <textarea class="editor-input" id="explainerInput" placeholder="Paste ternary expression, e.g.: ($a > 10) ? (100) : (0)"></textarea>
+        </div>
 
         <div class="explainer-chips">
           <span>Examples:</span>
@@ -1005,7 +1121,6 @@
         </div>
       </div>
 
-      <!-- Tabs -->
       <div class="explainer-tabs">
         <button class="explainer-tab active" data-tab="tab-summary">Plain English</button>
         <button class="explainer-tab" data-tab="tab-tables">Tables</button>
@@ -1013,21 +1128,18 @@
         <button class="explainer-tab" data-tab="tab-tryit">Try It</button>
       </div>
 
-      <!-- Tab: Plain English -->
       <div class="explainer-tab-content active" id="tab-summary">
         <div id="structureBox"></div>
         <div id="patternBadges" class="pattern-list"></div>
         <div class="explain-summary" id="explainerSummary">Enter a ternary expression above and click <strong>Explain</strong>.</div>
       </div>
 
-      <!-- Tab: Tables -->
       <div class="explainer-tab-content" id="tab-tables">
         <div id="tablesContainer">
           <p class="no-tables-msg">No lookup tables detected. Explain a ternary expression first.</p>
         </div>
       </div>
 
-      <!-- Tab: Standard Functions -->
       <div class="explainer-tab-content" id="tab-excel">
         <div class="excel-formula-box" id="explainerExcel">
           <span class="excel-formula-label">Reconstructed Standard Expression</span>
@@ -1035,7 +1147,6 @@
         </div>
       </div>
 
-      <!-- Tab: Try It -->
       <div class="explainer-tab-content" id="tab-tryit">
         <p class="hint">Enter values for each variable, then click <strong>Run</strong> to trace which path the logic takes.</p>
         <div class="var-grid" id="varGrid"></div>
