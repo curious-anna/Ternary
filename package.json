@@ -5,6 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "build": "mkdir -p build && cp -R public/. build/",
+    "postinstall": "npm run build",
     "test": "node testConversion.js"
   },
   "engines": {
