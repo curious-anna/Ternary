@@ -1,18 +1,13 @@
 {
   "name": "recreate-excel",
   "version": "1.0.0",
-  "description": "Excel-like input to pseudocode converter full-stack app",
-  "main": "server.js",
+  "description": "Excel formula to ternary expression converter",
   "scripts": {
-    "start": "node server.js",
-    "build": "mkdir -p build && cp -R public/. build/",
-    "postinstall": "npm run build",
-    "test": "node testConversion.js"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
-  "engines": {
-    "node": ">=20"
-  },
-  "dependencies": {
-    "express": "^4.18.2"
+  "devDependencies": {
+    "vite": "^8.0.12"
   }
 }

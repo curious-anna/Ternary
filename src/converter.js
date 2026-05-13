@@ -2277,7 +2277,7 @@ function detectTables(rootNode) {
   return tables;
 }
 
-module.exports = {
+export {
   toPseudocode,
   explainPseudocode,
   evaluateWithTrace,
