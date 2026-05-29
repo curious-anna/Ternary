@@ -1,4 +1,12 @@
-import { toPseudocode, explainPseudocode as explainConverter, evaluateWithTrace } from './converter.js';
+import { toPseudocode } from './convert.js';
+import { explainPseudocode as explainConverter, evaluateWithTrace } from './explain.js';
+import {
+  escapeHtml, renderBracketColoredText, applyBracketPairColorizationToHtml,
+  assignVariableColors, assignDefinitionColors, buildVariableLegend, buildDefinitionLegend,
+  highlightExplanation, wireVariableInteractivity, wireDefinitionInteractivity,
+} from './highlight.js';
+
+// ── DOM refs ──────────────────────────────────────────────────────────
 
 const resultEl      = document.getElementById('result');
 const explanationEl = document.getElementById('explanation');
@@ -8,75 +16,7 @@ const charCounterEl = document.getElementById('charCounter');
 const validationEl  = document.getElementById('validationBadge');
 const copyToastEl   = document.getElementById('copyToast');
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function escapeHtml(text) {
-  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-  return text.replace(/[&<>"']/g, m => map[m]);
-}
-
-const OPEN_BRACKETS = new Set(['(', '[', '{']);
-const CLOSE_BRACKETS = new Set([')', ']', '}']);
-const BRACKET_DEPTH_COLORS = 6;
-
-function renderBracketColoredText(text) {
-  let html = '';
-  let depth = 0;
-
-  for (const ch of text) {
-    if (OPEN_BRACKETS.has(ch)) {
-      html += `<span class="token-bracket-pair bracket-depth-${depth % BRACKET_DEPTH_COLORS}">${escapeHtml(ch)}</span>`;
-      depth++;
-      continue;
-    }
-
-    if (CLOSE_BRACKETS.has(ch)) {
-      depth = Math.max(depth - 1, 0);
-      html += `<span class="token-bracket-pair bracket-depth-${depth % BRACKET_DEPTH_COLORS}">${escapeHtml(ch)}</span>`;
-      continue;
-    }
-
-    html += escapeHtml(ch);
-  }
-
-  return html;
-}
-
-function applyBracketPairColorizationToHtml(html) {
-  let output = '';
-  let depth = 0;
-  let inTag = false;
-
-  for (const ch of html) {
-    if (ch === '<') {
-      inTag = true;
-      output += ch;
-      continue;
-    }
-
-    if (inTag) {
-      output += ch;
-      if (ch === '>') inTag = false;
-      continue;
-    }
-
-    if (OPEN_BRACKETS.has(ch)) {
-      output += `<span class="token-bracket-pair bracket-depth-${depth % BRACKET_DEPTH_COLORS}">${ch}</span>`;
-      depth++;
-      continue;
-    }
-
-    if (CLOSE_BRACKETS.has(ch)) {
-      depth = Math.max(depth - 1, 0);
-      output += `<span class="token-bracket-pair bracket-depth-${depth % BRACKET_DEPTH_COLORS}">${ch}</span>`;
-      continue;
-    }
-
-    output += ch;
-  }
-
-  return output;
-}
+// ── Converter panel ───────────────────────────────────────────────────
 
 function setCodeOutput(text, isError = false) {
   resultEl.innerHTML = renderBracketColoredText(text);
@@ -84,186 +24,19 @@ function setCodeOutput(text, isError = false) {
 }
 
 function syncEditorMirror(textareaEl, mirrorEl) {
-  if (!textareaEl || !mirrorEl) return;
-  const shell = textareaEl.closest('.editor-shell');
-  const value = textareaEl.value;
-  mirrorEl.innerHTML = value ? renderBracketColoredText(value) : '';
+  const shell = textareaEl?.closest('.editor-shell');
+  const value = textareaEl?.value ?? '';
+  if (mirrorEl) mirrorEl.innerHTML = value ? renderBracketColoredText(value) : '';
   if (shell) shell.classList.toggle('has-content', value.length > 0);
-  mirrorEl.scrollTop = textareaEl.scrollTop;
-  mirrorEl.scrollLeft = textareaEl.scrollLeft;
-}
-
-// ── Variable Color System ─────────────────────────────────────────────────────
-
-const VAR_COLORS = 10;
-let varColorMap = {};
-
-const DEF_COLORS = 8;
-let defColorMap = {};
-
-function assignVariableColors(text) {
-  varColorMap = {};
-  const vars = [];
-  const re = /\$[a-zA-Z_][a-zA-Z0-9_]*/g;
-  let m;
-  while ((m = re.exec(text)) !== null) {
-    if (!vars.includes(m[0])) vars.push(m[0]);
-  }
-  vars.forEach((v, i) => { varColorMap[v] = i % VAR_COLORS; });
-}
-
-function assignDefinitionColors(text) {
-  defColorMap = {};
-  const defs = [];
-  const defRe = /^\s+\[([^\]]+)\]\s*=/gm;
-  let m;
-  while ((m = defRe.exec(text)) !== null) {
-    if (!defs.includes(m[1])) defs.push(m[1]);
-  }
-  defs.forEach((d, i) => { defColorMap[d] = i % DEF_COLORS; });
-}
-
-function buildVariableLegend() {
-  const vars = Object.keys(varColorMap);
-  if (vars.length === 0) return '';
-  const items = vars.map(v => {
-    const ci = varColorMap[v];
-    return `<span class="var-legend-item var-color-${ci}" data-var="${v}"><span class="var-legend-dot"></span>${v}</span>`;
-  }).join('');
-  return `<div class="var-legend" title="Variables">${items}</div>`;
-}
-
-function buildDefinitionLegend() {
-  const defs = Object.keys(defColorMap);
-  if (defs.length === 0) return '';
-  const items = defs.map(d => {
-    const ci = defColorMap[d];
-    return `<span class="def-legend-item def-color-${ci}" data-def="${escapeHtml(d)}"><span class="def-legend-dot"></span>[${escapeHtml(d)}]</span>`;
-  }).join('');
-  return `<div class="def-legend" title="Definitions">${items}</div>`;
-}
-
-function varSpan(varName) {
-  const ci = varColorMap[varName] !== undefined ? varColorMap[varName] : 0;
-  return `<span class="token-variable var-color-${ci}" data-var="${varName}">${varName}</span>`;
-}
-
-function defSpan(label, inner) {
-  const ci = defColorMap[label] !== undefined ? defColorMap[label] : 0;
-  return `<span class="token-def-ref def-color-${ci}" data-def="${escapeHtml(label)}">[${inner}]</span>`;
-}
-
-function highlightExplanation(text) {
-  const lines = text.split('\n');
-  const htmlLines = lines.map(line => {
-    if (/^---$/.test(line.trim())) return '<hr style="border-color:#334155;margin:14px 0">';
-
-    if (/^Where:/.test(line.trim())) {
-      return `<div class="where-header">Where:</div>`;
-    }
-
-    const headerMatch = line.match(/^(This formula computes:|This expression simply returns:|This formula has \d+ decision points?\.)(.*)$/);
-    if (headerMatch) {
-      return `<span class="token-formula-header">${escapeHtml(headerMatch[1])}</span>${headerMatch[2] ? tokenizeLine(headerMatch[2]) : ''}`;
-    }
-
-    const defMatch = line.match(/^(\s+)\[([^\]]+)\]\s*=\s*(.+)$/);
-    if (defMatch) {
-      const indent = defMatch[1].replace(/ /g, '&nbsp;');
-      const label = defMatch[2];
-      const ci = defColorMap[label] !== undefined ? defColorMap[label] : 0;
-      const detail = tokenizeLine(defMatch[3]);
-      return `${indent}<span class="token-def-label def-color-${ci}" data-def="${escapeHtml(label)}">[${escapeHtml(label)}]</span> <span class="token-operator">=</span> ${detail}`;
-    }
-
-    return tokenizeLine(line);
-  });
-  return htmlLines.join('<br />');
-}
-
-function tokenizeLine(line) {
-  const tokenRegex = /\[([^\]]+)\]|Step \d+:|Check whether |Structure:|Detected patterns:|✓ If YES → |✗ If NO  → |return |go to |clamped between |rounded to nearest |Minimum of |Maximum of | and |\$[a-zA-Z_][a-zA-Z0-9_]*|\b\d{1,3}(?:,\d{3})*(?:\.\d+)?%?\b|\b\d+(?:\.\d+)?%?\b|<=|>=|!=|==|×|AND |OR |both |all of: |when |if |else |unless |otherwise |prorated by |[+\-*\/%]|[?:()]|\n|[ \t]+|./g;
-  let result = '';
-  let match;
-  while ((match = tokenRegex.exec(line)) !== null) {
-    const token = match[0];
-    if (token === '\n') { result += '<br />'; continue; }
-    if (/^[ \t]+$/.test(token)) { result += token.replace(/ /g, '&nbsp;').replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;'); continue; }
-
-    if (match[1] !== undefined) {
-      const bracketLabel = match[1];
-      if (defColorMap[bracketLabel] !== undefined) {
-        result += defSpan(bracketLabel, escapeHtml(bracketLabel));
-        continue;
-      }
-      result += `<span class="token-bracket-label">[${tokenizeBracketContent(bracketLabel)}]</span>`;
-      continue;
-    }
-
-    if (/^Step \d+:$/.test(token)) { result += `<span class="token-step">${token}</span>`; continue; }
-    if (token === 'Check whether ') { result += `<span class="token-check">Check whether </span>`; continue; }
-    if (token === 'Structure:') { result += `<span class="token-section-header">${token}</span>`; continue; }
-    if (token === 'Detected patterns:') { result += `<span class="token-section-header">${token}</span>`; continue; }
-
-    if (token === '✓ If YES → ') { result += `<span class="token-yes">✓ If YES →</span> `; continue; }
-    if (token === '✗ If NO  → ') { result += `<span class="token-no">✗ If NO  →</span> `; continue; }
-    if (token === 'return ') { result += `<span class="token-keyword">return</span> `; continue; }
-    if (token === 'go to ') { result += `<span class="token-keyword">go to</span> `; continue; }
-
-    if (token === 'clamped between ') { result += `<span class="token-layer">clamped between </span>`; continue; }
-    if (token === 'rounded to nearest ') { result += `<span class="token-layer">rounded to nearest </span>`; continue; }
-    if (token === 'Minimum of ') { result += `<span class="token-layer">Minimum of </span>`; continue; }
-    if (token === 'Maximum of ') { result += `<span class="token-layer">Maximum of </span>`; continue; }
-
-    if (token === ' and ') { result += ` <span class="token-cond-word">and</span> `; continue; }
-
-    if (/^\$[a-zA-Z_][a-zA-Z0-9_]*$/.test(token)) { result += varSpan(token); continue; }
-
-    if (/^\d/.test(token)) { result += `<span class="token-number">${token}</span>`; continue; }
-
-    if (token === 'AND ') { result += `<span class="token-logic">AND</span> `; continue; }
-    if (token === 'OR ') { result += `<span class="token-logic">OR</span> `; continue; }
-    if (token === 'both ') { result += `<span class="token-logic-soft">both </span>`; continue; }
-    if (token === 'all of: ') { result += `<span class="token-logic-soft">all of: </span>`; continue; }
-
-    if (/^(when |if |else |unless |otherwise )$/.test(token)) { result += `<span class="token-cond-word">${token}</span>`; continue; }
-    if (token === 'prorated by ') { result += `<span class="token-cond-word">prorated by </span>`; continue; }
-
-    if (/^(<=|>=|!=|==|×)$/.test(token)) { result += `<span class="token-operator">${escapeHtml(token)}</span>`; continue; }
-
-    if (/^[+\-*\/%]$/.test(token)) { result += `<span class="token-operator">${escapeHtml(token)}</span>`; continue; }
-
-    if (/^[?:()]$/.test(token)) { result += `<span class="token-bracket">${token}</span>`; continue; }
-
-    result += escapeHtml(token);
-  }
-  return result;
-}
-
-function tokenizeBracketContent(content) {
-  const innerRegex = /\$[a-zA-Z_][a-zA-Z0-9_]*|\b\d{1,3}(?:,\d{3})*(?:\.\d+)?%?\b|\b\d+(?:\.\d+)?%?\b|<=|>=|!=|==|AND|OR|both |[+\-*\/%×]|./g;
-  let result = '';
-  let m;
-  while ((m = innerRegex.exec(content)) !== null) {
-    const t = m[0];
-    if (/^\$[a-zA-Z_]/.test(t)) { result += varSpan(t); continue; }
-    if (/^\d/.test(t)) { result += `<span class="token-number">${t}</span>`; continue; }
-    if (/^(AND|OR)$/.test(t)) { result += `<span class="token-logic">${t}</span>`; continue; }
-    if (/^(<=|>=|!=|==|[+\-*\/%×])$/.test(t)) { result += `<span class="token-operator">${escapeHtml(t)}</span>`; continue; }
-    result += escapeHtml(t);
-  }
-  return result;
+  if (mirrorEl) { mirrorEl.scrollTop = textareaEl.scrollTop; mirrorEl.scrollLeft = textareaEl.scrollLeft; }
 }
 
 function showValidationBadge(pseudocode) {
-  const forbidden = /\|\|/.test(pseudocode) || /&&/.test(pseudocode) ||
-    /\bAND\b/.test(pseudocode) || /\bOR\b/.test(pseudocode);
+  const forbidden = /\|\|/.test(pseudocode) || /&&/.test(pseudocode) || /\bAND\b/.test(pseudocode) || /\bOR\b/.test(pseudocode);
   validationEl.innerHTML = forbidden
     ? '<span class="badge-invalid">⚠️ Contains forbidden operators</span>'
     : '<span class="badge-valid">✅ Valid pseudocode</span>';
 }
-
-// ── Conversion ────────────────────────────────────────────────────────────────
 
 function convertFormula() {
   const input = inputEl.value.trim();
@@ -273,19 +46,16 @@ function convertFormula() {
     validationEl.innerHTML = '';
     return;
   }
-
   try {
     const { pseudocode, explanation } = toPseudocode(input);
     setCodeOutput(pseudocode);
     showValidationBadge(pseudocode);
-
-    const formatted = typeof explanation === 'string' ? explanation : '';
-    assignVariableColors(formatted);
-    assignDefinitionColors(formatted);
-    const legend = buildVariableLegend();
-    const defLegend = buildDefinitionLegend();
-    explanationEl.innerHTML = `${legend}${defLegend}<div class="explain-highlighted-code">${applyBracketPairColorizationToHtml(highlightExplanation(formatted))}</div>`;
-
+    const text = explanation || '';
+    assignVariableColors(text);
+    assignDefinitionColors(text);
+    explanationEl.innerHTML =
+      buildVariableLegend() + buildDefinitionLegend() +
+      `<div class="explain-highlighted-code">${applyBracketPairColorizationToHtml(highlightExplanation(text))}</div>`;
     wireVariableInteractivity();
     wireDefinitionInteractivity();
   } catch (err) {
@@ -295,81 +65,51 @@ function convertFormula() {
   }
 }
 
-// ── Copy with SVG button & toast ─────────────────────────────────────────────
-
 async function copyResult() {
-  const pseudo = resultEl.textContent.trim();
-  if (!pseudo || pseudo === 'Awaiting input…' || pseudo.startsWith('Error:') || pseudo.startsWith('Please') || pseudo.startsWith('Network')) {
-    return;
-  }
+  const text = resultEl.textContent.trim();
+  if (!text || text === 'Awaiting input…' || text.startsWith('Error:') || text.startsWith('Please')) return;
   try {
-    await navigator.clipboard.writeText(pseudo);
-    copyToastEl.classList.remove('hidden');
-    setTimeout(() => copyToastEl.classList.add('hidden'), 2000);
-  } catch (e) {
+    await navigator.clipboard.writeText(text);
+    copyToastEl.textContent = '✅ Copied!';
+  } catch {
     copyToastEl.textContent = 'Copy failed';
-    copyToastEl.classList.remove('hidden');
-    setTimeout(() => copyToastEl.classList.add('hidden'), 2000);
   }
+  copyToastEl.classList.remove('hidden');
+  setTimeout(() => copyToastEl.classList.add('hidden'), 2000);
 }
-
-// ── Character counter ─────────────────────────────────────────────────────────
-
-function updateCharCounter() {
-  charCounterEl.textContent = inputEl.value.length + ' chars';
-}
-
-// ── Debounced live translation ────────────────────────────────────────────────
 
 let debounceTimer = null;
 inputEl.addEventListener('input', () => {
-  updateCharCounter();
+  charCounterEl.textContent = inputEl.value.length + ' chars';
   syncEditorMirror(inputEl, inputMirrorEl);
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(convertFormula, 300);
 });
-
 inputEl.addEventListener('scroll', () => syncEditorMirror(inputEl, inputMirrorEl));
-
-// ── Example chips ─────────────────────────────────────────────────────────────
-
-document.querySelectorAll('.chip').forEach(chip => {
-  chip.addEventListener('click', () => {
-    inputEl.value = chip.dataset.formula;
-    updateCharCounter();
-    syncEditorMirror(inputEl, inputMirrorEl);
-    convertFormula();
-  });
-});
-
-// ── Clear button ──────────────────────────────────────────────────────────────
-
+document.getElementById('convertBtn').addEventListener('click', convertFormula);
 document.getElementById('clearBtn').addEventListener('click', () => {
   inputEl.value = '';
-  updateCharCounter();
+  charCounterEl.textContent = '0 chars';
   syncEditorMirror(inputEl, inputMirrorEl);
   setCodeOutput('Awaiting input…');
   explanationEl.innerHTML = 'No conversion yet.';
   validationEl.innerHTML = '';
   copyToastEl.classList.add('hidden');
 });
-
-// ── Convert button & keyboard shortcut ───────────────────────────────────────
-
-document.getElementById('convertBtn').addEventListener('click', convertFormula);
-
-document.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-    e.preventDefault();
+document.getElementById('copyBtn').addEventListener('click', copyResult);
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    inputEl.value = chip.dataset.formula;
+    charCounterEl.textContent = inputEl.value.length + ' chars';
+    syncEditorMirror(inputEl, inputMirrorEl);
     convertFormula();
-  }
+  });
+});
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); convertFormula(); }
 });
 
-document.getElementById('copyBtn').addEventListener('click', copyResult);
-
-// ══════════════════════════════════════════════════════════════════════════════
-// ── Pseudocode Explainer ─────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Explainer panel ───────────────────────────────────────────────────
 
 const explainerToggleBar = document.getElementById('explainerToggleBar');
 const explainerToggle    = document.getElementById('explainerToggle');
@@ -386,24 +126,15 @@ const patternBadges      = document.getElementById('patternBadges');
 const tablesContainer    = document.getElementById('tablesContainer');
 const structureBox       = document.getElementById('structureBox');
 
-let currentExplainData = null;
-let currentPseudocode  = '';
-
-// ── Toggle explainer panel ────────────────────────────────────────────────────
-
-explainerToggleBar.addEventListener('click', () => {
-  explainerToggle.checked = !explainerToggle.checked;
-  syncExplainerVisibility();
-});
-explainerToggle.addEventListener('change', syncExplainerVisibility);
+let currentPseudocode = '';
 
 function syncExplainerVisibility() {
   const open = explainerToggle.checked;
   explainerPanel.classList.toggle('visible', open);
   explainerToggleBar.classList.toggle('open', open);
 }
-
-// ── Tabs ──────────────────────────────────────────────────────────────────────
+explainerToggleBar.addEventListener('click', () => { explainerToggle.checked = !explainerToggle.checked; syncExplainerVisibility(); });
+explainerToggle.addEventListener('change', syncExplainerVisibility);
 
 document.querySelectorAll('.explainer-tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -414,9 +145,7 @@ document.querySelectorAll('.explainer-tab').forEach(tab => {
   });
 });
 
-// ── Explain ───────────────────────────────────────────────────────────────────
-
-function explainPseudocode() {
+function explainPseudocodeUI() {
   const input = explainerInput.value.trim();
   if (!input) {
     explainerSummary.innerHTML = 'Please paste a ternary expression above.';
@@ -424,92 +153,74 @@ function explainPseudocode() {
     varGrid.innerHTML = '';
     traceOutput.innerHTML = 'Waiting for variable values…';
     runTraceBtn.disabled = true;
-    currentExplainData = null;
     return;
   }
-
   currentPseudocode = input;
-
   try {
-    const result = explainConverter(input);
-    currentExplainData = result;
-    renderExplanation(result);
+    renderExplanation(explainConverter(input));
   } catch (err) {
     explainerSummary.innerHTML = `<span style="color:#ef4444">Error: ${escapeHtml(err.message)}</span>`;
   }
 }
 
-// ── Render the explanation across all tabs ─────────────────────────────────────
-
 function renderExplanation(data) {
-  if (data.structures && data.structures.length > 0) {
-    let html = '<div class="structure-box">';
-    html += '<div class="structure-title">Formula Structure</div>';
+  // Structure box
+  if (data.structures?.length > 0) {
+    let html = '<div class="structure-box"><div class="structure-title">Formula Structure</div>';
     for (const s of data.structures) {
-      const tagCls = s.type === 'guard' ? 'guard' : s.type === 'clamp' ? 'clamp' : s.type === 'comparison' ? 'compare' : s.type === 'rounding' ? 'round' : 'guard';
-      html += `<div class="structure-item">`;
-      html += `<span class="structure-tag ${tagCls}">${escapeHtml(s.type)}</span>`;
-      html += `<span class="structure-desc">${escapeHtml(s.description)}</span>`;
-      html += '</div>';
+      const tagCls = { guard: 'guard', clamp: 'clamp', comparison: 'compare', rounding: 'round' }[s.type] || 'guard';
+      html += `<div class="structure-item"><span class="structure-tag ${tagCls}">${escapeHtml(s.type)}</span><span class="structure-desc">${escapeHtml(s.description)}</span></div>`;
     }
-    html += '</div>';
-    structureBox.innerHTML = html;
+    structureBox.innerHTML = html + '</div>';
   } else {
     structureBox.innerHTML = '';
   }
 
-  if (data.patterns && data.patterns.length > 0) {
-    let badgeHtml = '';
-    for (const p of data.patterns) {
-      const cls = p.type || 'default';
-      const icon = p.type === 'max' ? '▲' : p.type === 'min' ? '▼' : p.type === 'round' ? '⊙' : p.type === 'roundup' ? '⊘' : p.type === 'clamp' ? '⇔' : p.type === 'conditional' ? '?' : '•';
-      badgeHtml += `<span class="pattern-badge ${cls}">${icon} ${escapeHtml(p.description)}</span>`;
-    }
-    patternBadges.innerHTML = badgeHtml;
+  // Pattern badges
+  if (data.patterns?.length > 0) {
+    const icons = { max: '▲', min: '▼', round: '⊙', roundup: '⊘', clamp: '⇔', conditional: '?' };
+    patternBadges.innerHTML = data.patterns.map(p =>
+      `<span class="pattern-badge ${p.type || 'default'}">${icons[p.type] || '•'} ${escapeHtml(p.description)}</span>`
+    ).join('');
   } else {
     patternBadges.innerHTML = '';
   }
 
-  let summaryText = data.summary;
-  summaryText = summaryText.replace(/^Structure:\n(  \[.+\]\s.+\n)*\n?/m, '');
+  // Summary
+  const summaryText = (data.summary || '').replace(/^Structure:\n(  \[.+\]\s.+\n)*\n?/m, '');
   assignVariableColors(summaryText);
   assignDefinitionColors(summaryText);
-  const legend = buildVariableLegend();
-  const defLegend = buildDefinitionLegend();
-  const summaryHtml = `${legend}${defLegend}<div class="explain-highlighted-code">${applyBracketPairColorizationToHtml(highlightExplanation(summaryText))}</div>`;
-  explainerSummary.innerHTML = summaryHtml;
+  explainerSummary.innerHTML =
+    buildVariableLegend() + buildDefinitionLegend() +
+    `<div class="explain-highlighted-code">${applyBracketPairColorizationToHtml(highlightExplanation(summaryText))}</div>`;
   wireVariableInteractivity();
   wireDefinitionInteractivity();
 
-  if (data.tables && data.tables.length > 0) {
+  // Lookup tables
+  if (data.tables?.length > 0) {
     tablesContainer.innerHTML = '';
-    for (let ti = 0; ti < data.tables.length; ti++) {
-      const table = data.tables[ti];
+    for (const table of data.tables) {
       const wrap = document.createElement('div');
       wrap.className = 'lookup-table-wrap';
-
-      if (table.type === 'nested') {
-        wrap.innerHTML = renderNestedTable(table, ti);
-      } else {
-        wrap.innerHTML = renderFlatTable(table, ti);
-      }
+      wrap.innerHTML = table.type === 'nested' ? renderNestedTable(table) : renderFlatTable(table);
       tablesContainer.appendChild(wrap);
     }
     tablesContainer.querySelectorAll('.tier-header').forEach(hdr => {
       hdr.addEventListener('click', () => {
         hdr.classList.toggle('open');
-        const body = hdr.nextElementSibling;
-        if (body) body.classList.toggle('open');
+        hdr.nextElementSibling?.classList.toggle('open');
       });
     });
   } else {
     tablesContainer.innerHTML = '<p class="no-tables-msg">No lookup tables detected in this expression.</p>';
   }
 
+  // Excel formula
   excelFormulaText.innerHTML = renderBracketColoredText(data.excelFormula || '—');
 
+  // Variable input grid
   varGrid.innerHTML = '';
-  if (data.variables.length === 0) {
+  if (!data.variables?.length) {
     varGrid.innerHTML = '<p style="color:#64748b;font-size:13px">No variables detected.</p>';
     runTraceBtn.disabled = true;
   } else {
@@ -517,9 +228,7 @@ function renderExplanation(data) {
       const card = document.createElement('div');
       card.className = 'var-card';
       const name = v.startsWith('$') ? v.slice(1) : v;
-      card.innerHTML =
-        `<label><span>${escapeHtml(v)}</span></label>` +
-        `<input type="number" data-var="${escapeHtml(name)}" placeholder="0" step="any" />`;
+      card.innerHTML = `<label><span>${escapeHtml(v)}</span></label><input type="number" data-var="${escapeHtml(name)}" placeholder="0" step="any" />`;
       varGrid.appendChild(card);
     }
     runTraceBtn.disabled = false;
@@ -527,147 +236,102 @@ function renderExplanation(data) {
   traceOutput.innerHTML = 'Enter values above and click <strong>Run</strong>.';
 }
 
-// ── Table rendering helpers ──────────────────────────────────────────────────
+// ── Table rendering ───────────────────────────────────────────────────
 
 function formatResultCell(row) {
   let html = `<span class="lt-result">${escapeHtml(row.result)}</span>`;
-  if (row.formulaDesc) {
-    html += `<span class="lt-formula-desc">${escapeHtml(row.formulaDesc)}</span>`;
-  }
+  if (row.formulaDesc) html += `<span class="lt-formula-desc">${escapeHtml(row.formulaDesc)}</span>`;
   return html;
 }
 
-function renderFlatTable(table, idx) {
-  const varClean = escapeHtml(table.variable);
-  const rowCount = table.rows.length;
-  let html = `<div class="lookup-table-title">${escapeHtml(table.title)} <span class="lt-badge">${rowCount} rows</span></div>`;
-  html += '<table class="lookup-table"><thead><tr>';
-  html += `<th>Condition (${varClean})</th><th>Result</th>`;
-  html += '</tr></thead><tbody>';
+function renderFlatTable(table) {
+  const v = escapeHtml(table.variable);
+  let html = `<div class="lookup-table-title">${escapeHtml(table.title)} <span class="lt-badge">${table.rows.length} rows</span></div>`;
+  html += `<table class="lookup-table"><thead><tr><th>Condition (${v})</th><th>Result</th></tr></thead><tbody>`;
   for (const row of table.rows) {
     const isDefault = row.threshold === 'otherwise';
-    const cls = isDefault ? ' class="lt-default"' : '';
-    const condText = isDefault ? 'Otherwise (default)' : `${varClean} ${escapeHtml(row.op)} ${escapeHtml(row.threshold)}`;
-    html += `<tr${cls}>`;
-    html += `<td class="lt-threshold">${condText}</td>`;
-    html += `<td>${formatResultCell(row)}</td>`;
-    html += '</tr>';
+    const condText  = isDefault ? 'Otherwise (default)' : `${v} ${escapeHtml(row.op)} ${escapeHtml(row.threshold)}`;
+    html += `<tr${isDefault ? ' class="lt-default"' : ''}><td class="lt-threshold">${condText}</td><td>${formatResultCell(row)}</td></tr>`;
   }
-  html += '</tbody></table>';
-  return html;
+  return html + '</tbody></table>';
 }
 
-function renderNestedTable(table, idx) {
-  const outerVar = escapeHtml(table.outerVariable);
-  const innerVar = escapeHtml(table.innerVariable);
+function renderNestedTable(table) {
+  const outer = escapeHtml(table.outerVariable);
+  const inner = escapeHtml(table.innerVariable);
   let html = `<div class="lookup-table-title">${escapeHtml(table.title)} <span class="lt-badge">${table.tiers.length} tiers</span></div>`;
-
   for (let i = 0; i < table.tiers.length; i++) {
     const tier = table.tiers[i];
-    const tierLabel = `${outerVar} ${escapeHtml(tier.op)} ${escapeHtml(tier.threshold)}`;
-    const isFirst = i === 0;
-    html += `<div class="tier-header${isFirst ? ' open' : ''}" data-tier="${i}">`;
-    html += `<span class="tier-arrow">▶</span> ${tierLabel}`;
-    html += `<span class="lt-badge">${tier.rows.length} rows</span>`;
-    html += '</div>';
-    html += `<div class="tier-body${isFirst ? ' open' : ''}">`;
-    html += `<table class="lookup-table"><thead><tr>`;
-    html += `<th>Condition (${innerVar})</th><th>Result</th>`;
-    html += '</tr></thead><tbody>';
+    const label = `${outer} ${escapeHtml(tier.op)} ${escapeHtml(tier.threshold)}`;
+    html += `<div class="tier-header${i === 0 ? ' open' : ''}"><span class="tier-arrow">▶</span> ${label}<span class="lt-badge">${tier.rows.length} rows</span></div>`;
+    html += `<div class="tier-body${i === 0 ? ' open' : ''}"><table class="lookup-table"><thead><tr><th>Condition (${inner})</th><th>Result</th></tr></thead><tbody>`;
     for (const row of tier.rows) {
       const isDefault = row.threshold === 'otherwise';
-      const cls = isDefault ? ' class="lt-default"' : '';
-      const condText = isDefault ? 'Otherwise (default)' : `${innerVar} ${escapeHtml(row.op)} ${escapeHtml(row.threshold)}`;
-      html += `<tr${cls}>`;
-      html += `<td class="lt-threshold">${condText}</td>`;
-      html += `<td>${formatResultCell(row)}</td>`;
-      html += '</tr>';
+      const condText  = isDefault ? 'Otherwise (default)' : `${inner} ${escapeHtml(row.op)} ${escapeHtml(row.threshold)}`;
+      html += `<tr${isDefault ? ' class="lt-default"' : ''}><td class="lt-threshold">${condText}</td><td>${formatResultCell(row)}</td></tr>`;
     }
     html += '</tbody></table></div>';
   }
-
   if (table.defaultResult) {
-    html += `<div style="margin-top:8px;padding:8px 14px;background:#fefce8;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:#854d0e">`;
-    html += `<strong>Default (no tier matched):</strong> ${escapeHtml(table.defaultResult.text)}`;
-    html += '</div>';
+    html += `<div style="margin-top:8px;padding:8px 14px;background:#fefce8;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:#854d0e"><strong>Default (no tier matched):</strong> ${escapeHtml(table.defaultResult.text)}</div>`;
   }
-
   return html;
 }
 
-// ── Run trace (Try It) ───────────────────────────────────────────────────────
+// ── Try It (trace evaluator) ──────────────────────────────────────────
 
 function runTrace() {
   if (!currentPseudocode) return;
-
   const values = {};
   let allFilled = true;
   varGrid.querySelectorAll('input[data-var]').forEach(inp => {
-    const name = inp.dataset.var;
-    if (inp.value.trim() === '') {
-      allFilled = false;
-    } else {
-      values[name] = parseFloat(inp.value);
-    }
+    if (!inp.value.trim()) allFilled = false;
+    else values[inp.dataset.var] = parseFloat(inp.value);
   });
-
-  if (!allFilled) {
-    traceOutput.innerHTML = '<span class="trace-error">Please fill in all variable values.</span>';
-    return;
-  }
-
+  if (!allFilled) { traceOutput.innerHTML = '<span class="trace-error">Please fill in all variable values.</span>'; return; }
   try {
-    const result = evaluateWithTrace(currentPseudocode, values);
-    renderTrace(result, values);
+    renderTrace(evaluateWithTrace(currentPseudocode, values), values);
   } catch (err) {
     traceOutput.innerHTML = `<span class="trace-error">${escapeHtml(err.message)}</span>`;
   }
 }
 
 function renderTrace(data, values) {
-  let html = '';
-
-  html += '<div style="margin-bottom:12px;color:#94a3b8">';
-  html += Object.entries(values)
-    .map(([k, v]) => `<span class="token-variable">$${escapeHtml(k)}</span> = <span class="token-number">${v}</span>`)
-    .join('&nbsp;&nbsp;│&nbsp;&nbsp;');
+  let html = '<div style="margin-bottom:12px;color:#94a3b8">';
+  html += Object.entries(values).map(([k, v]) =>
+    `<span class="token-variable">$${escapeHtml(k)}</span> = <span class="token-number">${v}</span>`
+  ).join('&nbsp;&nbsp;│&nbsp;&nbsp;');
   html += '</div>';
-
-  for (let i = 0; i < data.trace.length; i++) {
-    const t = data.trace[i];
+  for (const t of data.trace) {
     if (t.type === 'condition') {
-      const icon = t.result ? '✓' : '✗';
-      const cls = t.result ? 'trace-yes' : 'trace-no';
-      html += `<div class="trace-step">`;
-      html += `<span class="trace-check">Check:</span> ${escapeHtml(t.condition)} `;
-      html += `<span class="${cls}"> → ${icon} ${t.result ? 'YES' : 'NO'}</span>`;
-      html += `</div>`;
+      html += `<div class="trace-step"><span class="trace-check">Check:</span> ${escapeHtml(t.condition)} <span class="${t.result ? 'trace-yes' : 'trace-no'}"> → ${t.result ? '✓ YES' : '✗ NO'}</span></div>`;
     } else if (t.type === 'result') {
       html += `<div class="trace-result">Final Result: ${t.value}</div>`;
     }
   }
-
   traceOutput.innerHTML = html;
 }
 
-// ── Event listeners ──────────────────────────────────────────────────────────
+// ── Explainer event listeners ─────────────────────────────────────────
 
-document.getElementById('explainBtn').addEventListener('click', explainPseudocode);
+document.getElementById('explainBtn').addEventListener('click', explainPseudocodeUI);
 runTraceBtn.addEventListener('click', runTrace);
 
 explainerInput.addEventListener('input', () => {
   explainerCharCount.textContent = explainerInput.value.length + ' chars';
   syncEditorMirror(explainerInput, explainerMirrorEl);
 });
-
 explainerInput.addEventListener('scroll', () => syncEditorMirror(explainerInput, explainerMirrorEl));
+explainerInput.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); explainPseudocodeUI(); }
+});
 
 document.querySelectorAll('.explainer-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     explainerInput.value = chip.dataset.pseudo;
     explainerCharCount.textContent = explainerInput.value.length + ' chars';
     syncEditorMirror(explainerInput, explainerMirrorEl);
-    explainPseudocode();
+    explainPseudocodeUI();
   });
 });
 
@@ -680,112 +344,17 @@ document.getElementById('explainerClearBtn').addEventListener('click', () => {
   varGrid.innerHTML = '';
   traceOutput.innerHTML = 'Waiting for variable values…';
   runTraceBtn.disabled = true;
-  currentExplainData = null;
   currentPseudocode = '';
   patternBadges.innerHTML = '';
   structureBox.innerHTML = '';
   tablesContainer.innerHTML = '<p class="no-tables-msg">No lookup tables detected. Explain a ternary expression first.</p>';
 });
 
-explainerInput.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-    e.preventDefault();
-    explainPseudocode();
-  }
+varGrid.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); runTrace(); }
 });
 
-varGrid.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
-    e.preventDefault();
-    runTrace();
-  }
-});
-
-// ── Variable interactivity ────────────────────────────────────────────────────
-
-function wireVariableInteractivity() {
-  document.querySelectorAll('.var-legend-item').forEach(item => {
-    const varName = item.dataset.var;
-    item.addEventListener('mouseenter', () => highlightVar(varName, true));
-    item.addEventListener('mouseleave', () => highlightVar(varName, false));
-    item.addEventListener('click', () => toggleVarPin(varName));
-  });
-
-  document.querySelectorAll('.token-variable[data-var]').forEach(span => {
-    const varName = span.dataset.var;
-    span.addEventListener('mouseenter', () => highlightVar(varName, true));
-    span.addEventListener('mouseleave', () => highlightVar(varName, false));
-    span.addEventListener('click', () => toggleVarPin(varName));
-  });
-}
-
-let pinnedVar = null;
-
-function highlightVar(varName, on) {
-  if (pinnedVar && pinnedVar !== varName) return;
-  document.querySelectorAll(`.token-variable[data-var="${varName}"]`).forEach(el => {
-    el.classList.toggle('var-highlight', on);
-  });
-  document.querySelectorAll(`.var-legend-item[data-var="${varName}"]`).forEach(el => {
-    el.classList.toggle('active', on);
-  });
-}
-
-function toggleVarPin(varName) {
-  if (pinnedVar === varName) {
-    highlightVar(varName, false);
-    pinnedVar = null;
-  } else {
-    if (pinnedVar) highlightVar(pinnedVar, false);
-    pinnedVar = varName;
-    highlightVar(varName, true);
-  }
-}
-
-// ── Definition interactivity ──────────────────────────────────────────────────
-
-function wireDefinitionInteractivity() {
-  document.querySelectorAll('.def-legend-item').forEach(item => {
-    const defName = item.dataset.def;
-    item.addEventListener('mouseenter', () => highlightDef(defName, true));
-    item.addEventListener('mouseleave', () => highlightDef(defName, false));
-    item.addEventListener('click', () => toggleDefPin(defName));
-  });
-
-  document.querySelectorAll('.token-def-ref[data-def]').forEach(span => {
-    const defName = span.dataset.def;
-    span.addEventListener('mouseenter', () => highlightDef(defName, true));
-    span.addEventListener('mouseleave', () => highlightDef(defName, false));
-    span.addEventListener('click', () => toggleDefPin(defName));
-  });
-
-  document.querySelectorAll('.token-def-label[data-def]').forEach(span => {
-    const defName = span.dataset.def;
-    span.addEventListener('mouseenter', () => highlightDef(defName, true));
-    span.addEventListener('mouseleave', () => highlightDef(defName, false));
-    span.addEventListener('click', () => toggleDefPin(defName));
-  });
-}
-
-let pinnedDef = null;
-
-function highlightDef(defName, on) {
-  if (pinnedDef && pinnedDef !== defName) return;
-  document.querySelectorAll(`[data-def="${defName}"]`).forEach(el => {
-    el.classList.toggle('def-highlight', on);
-  });
-}
-
-function toggleDefPin(defName) {
-  if (pinnedDef === defName) {
-    highlightDef(defName, false);
-    pinnedDef = null;
-  } else {
-    if (pinnedDef) highlightDef(pinnedDef, false);
-    pinnedDef = defName;
-    highlightDef(defName, true);
-  }
-}
+// ── Init ──────────────────────────────────────────────────────────────
 
 syncEditorMirror(inputEl, inputMirrorEl);
 syncEditorMirror(explainerInput, explainerMirrorEl);

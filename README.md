@@ -15,30 +15,9 @@ A full-stack tool that converts standard function expressions (IF, MIN, MAX, ROU
 2. `npm start`
 3. Open `http://localhost:3010`
 
-## Deploy on Render
-This repo is ready for Render Web Service deployment.
+## Deploy 
+This repo is currently deployed on firebase. 
 
-Option 1: Blueprint deploy (recommended)
-1. Push this repo to GitHub.
-2. In Render, click `New +` -> `Blueprint`.
-3. Select this repository.
-4. Render will use `render.yaml` automatically:
-  - Build: `npm install`
-  - Start: `npm start`
-  - Health check: `/healthz`
-
-Option 2: Manual Web Service
-1. In Render, click `New +` -> `Web Service`.
-2. Connect this repository.
-3. Set:
-  - Runtime: `Node`
-  - Build Command: `npm install`
-  - Start Command: `npm start`
-4. (Optional) Set Health Check Path to `/healthz`.
-
-Notes:
-- The server listens on `process.env.PORT` (required by Render).
-- Static frontend files are served from `public/`.
 
 ## Usage
 - Enter expressions using standard functions:
