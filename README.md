@@ -4,7 +4,7 @@ A full-stack tool that converts standard function expressions (IF, MIN, MAX, ROU
 
 ## Features
 - Write expressions using standard functions: `IF`, `MIN`, `MAX`, `AND`, `OR`, `ROUND`, `ROUNDUP`, `ROUNDDOWN`
-- Backend converts them to strict ternary-only output: `condition ? true_result : false_result`
+- Converts them to strict ternary-only output: `condition ? true_result : false_result`
 - Reverse mode: paste existing ternary code and get a plain-English breakdown
 - Try-It evaluator: plug in variable values and trace the decision path
 - Pattern detection: identifies MIN/MAX/ROUND/CLAMP patterns in ternary trees
